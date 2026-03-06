@@ -206,15 +206,28 @@ async def get_prompt_by_image(
             if character_name:
                 hist_stmt = hist_stmt.where(ImageGenerationHistory.character_name == character_name)
             if current_user:
-                hist_stmt = hist_stmt.order_by(ImageGenerationHistory.user_id == user_id, ImageGenerationHistory.created_at.desc())
+                # В PostgreSQL True > False, поэтому order_by(desc(user_id==user_id)) чтобы свои записи были первыми
+                hist_stmt = hist_stmt.order_by((ImageGenerationHistory.user_id == user_id).desc(), ImageGenerationHistory.created_at.desc())
             else:
                 hist_stmt = hist_stmt.order_by(ImageGenerationHistory.created_at.desc())
             
             hist_record = (await db.execute(hist_stmt.limit(1))).scalars().first()
             if hist_record:
-                 log_debug(f"[PROMPT_DEBUG] FOUND in ImageGenerationHistory (Exact match). ID: {hist_record.id}, Prompt Len: {len(hist_record.prompt or '')}")
+                 log_debug(f"[PROMPT_DEBUG] FOUND in ImageGenerationHistory (Exact match with character). ID: {hist_record.id}, Prompt Len: {len(hist_record.prompt or '')}")
             else:
-                 log_debug(f"[PROMPT_DEBUG] NOT FOUND in ImageGenerationHistory (Exact match).")
+                 log_debug(f"[PROMPT_DEBUG] NOT FOUND in ImageGenerationHistory (Exact match with character).")
+                 
+            # 1.1.2 Точное совпадение URL без фильтра имени персонажа
+            if not hist_record and character_name:
+                log_debug(f"[PROMPT_DEBUG] 1. Searching ImageGenerationHistory without character_name...")
+                fallback_stmt = select(ImageGenerationHistory).where(ImageGenerationHistory.image_url == normalized_url)
+                if current_user:
+                    fallback_stmt = fallback_stmt.order_by((ImageGenerationHistory.user_id == user_id).desc(), ImageGenerationHistory.created_at.desc())
+                else:
+                    fallback_stmt = fallback_stmt.order_by(ImageGenerationHistory.created_at.desc())
+                hist_record = (await db.execute(fallback_stmt.limit(1))).scalars().first()
+                if hist_record:
+                     log_debug(f"[PROMPT_DEBUG] FOUND in ImageGenerationHistory (Exact match without character). ID: {hist_record.id}")
 
             # 1.2 По имени файла (User then Global)
             if not hist_record:
@@ -225,20 +238,32 @@ async def get_prompt_by_image(
                 log_debug(f"[PROMPT_DEBUG] Extracted Filename: '{filename}'")
                 
                 if filename and '.' in filename:
-                    log_debug(f"[PROMPT_DEBUG] 1. Searching ImageGenerationHistory by LIKE %{filename}...")
+                    log_debug(f"[PROMPT_DEBUG] 1.2 Searching ImageGenerationHistory by LIKE %{filename}...")
                     like_stmt = select(ImageGenerationHistory).where(ImageGenerationHistory.image_url.like(f"%{filename}"))
                     if character_name:
                         like_stmt = like_stmt.where(ImageGenerationHistory.character_name == character_name)
                     if current_user:
-                        like_stmt = like_stmt.order_by(ImageGenerationHistory.user_id == user_id, ImageGenerationHistory.created_at.desc())
+                        like_stmt = like_stmt.order_by((ImageGenerationHistory.user_id == user_id).desc(), ImageGenerationHistory.created_at.desc())
                     else:
                         like_stmt = like_stmt.order_by(ImageGenerationHistory.created_at.desc())
                         
                     hist_record = (await db.execute(like_stmt.limit(1))).scalars().first()
                     if hist_record:
-                         log_debug(f"[PROMPT_DEBUG] FOUND in ImageGenerationHistory (LIKE match). ID: {hist_record.id}")
+                         log_debug(f"[PROMPT_DEBUG] FOUND in ImageGenerationHistory (LIKE match with character). ID: {hist_record.id}")
                     else:
-                         log_debug(f"[PROMPT_DEBUG] NOT FOUND in ImageGenerationHistory (LIKE match).")
+                         log_debug(f"[PROMPT_DEBUG] NOT FOUND in ImageGenerationHistory (LIKE match with character).")
+                         
+                    # 1.2.2 LIKE match без фильтра имени персонажа
+                    if not hist_record and character_name:
+                        log_debug(f"[PROMPT_DEBUG] 1.2 Searching ImageGenerationHistory LIKE match without character_name...")
+                        like_fallback_stmt = select(ImageGenerationHistory).where(ImageGenerationHistory.image_url.like(f"%{filename}"))
+                        if current_user:
+                            like_fallback_stmt = like_fallback_stmt.order_by((ImageGenerationHistory.user_id == user_id).desc(), ImageGenerationHistory.created_at.desc())
+                        else:
+                            like_fallback_stmt = like_fallback_stmt.order_by(ImageGenerationHistory.created_at.desc())
+                        hist_record = (await db.execute(like_fallback_stmt.limit(1))).scalars().first()
+                        if hist_record:
+                             log_debug(f"[PROMPT_DEBUG] FOUND in ImageGenerationHistory (LIKE match without character). ID: {hist_record.id}")
             
             if hist_record:
                 clean_prompt = None
@@ -282,6 +307,14 @@ async def get_prompt_by_image(
                 stmt = stmt.where(ChatHistory.character_name == character_name)
             stmt = stmt.order_by(ChatHistory.created_at.desc()).limit(1)
             message = (await db.execute(stmt)).scalars().first()
+            
+            if not message and character_name:
+                log_debug(f"[PROMPT_DEBUG] 2.1 Searching ChatHistory (Exact URL, User {user_id}) without character_name...")
+                stmt_fallback = select(ChatHistory).where(
+                    ChatHistory.image_url == normalized_url,
+                    ChatHistory.user_id == user_id
+                ).order_by(ChatHistory.created_at.desc()).limit(1)
+                message = (await db.execute(stmt_fallback)).scalars().first()
         
         # 2.2 Точное совпадение URL (Global)
         if not message:
@@ -291,6 +324,12 @@ async def get_prompt_by_image(
                 stmt = stmt.where(ChatHistory.character_name == character_name)
             stmt = stmt.order_by(ChatHistory.created_at.desc()).limit(1)
             message = (await db.execute(stmt)).scalars().first()
+            
+            if not message and character_name:
+                log_debug(f"[PROMPT_DEBUG] 2.2 Searching ChatHistory (Exact URL, Global) without character_name...")
+                stmt_fallback = select(ChatHistory).where(ChatHistory.image_url == normalized_url)
+                stmt_fallback = stmt_fallback.order_by(ChatHistory.created_at.desc()).limit(1)
+                message = (await db.execute(stmt_fallback)).scalars().first()
         
         # 2.3 По имени файла
         if not message:
@@ -313,6 +352,10 @@ async def get_prompt_by_image(
                             stmt = stmt.where(ChatHistory.character_name == character_name)
                         stmt = stmt.order_by(ChatHistory.created_at.desc()).limit(1)
                         message = (await db.execute(stmt)).scalars().first()
+                        
+                        if not message and character_name:
+                            stmt_f = select(ChatHistory).where(ChatHistory.image_filename == filename, ChatHistory.user_id == user_id)
+                            message = (await db.execute(stmt_f.order_by(ChatHistory.created_at.desc()).limit(1))).scalars().first()
                     
                     # 2.3.2 Global
                     if not message:
@@ -321,6 +364,10 @@ async def get_prompt_by_image(
                             stmt = stmt.where(ChatHistory.character_name == character_name)
                         stmt = stmt.order_by(ChatHistory.created_at.desc()).limit(1)
                         message = (await db.execute(stmt)).scalars().first()
+                        
+                        if not message and character_name:
+                            stmt_f = select(ChatHistory).where(ChatHistory.image_filename == filename)
+                            message = (await db.execute(stmt_f.order_by(ChatHistory.created_at.desc()).limit(1))).scalars().first()
                     
                     # 2.3.3 LIKE Match (Legacy)
                     if not message:
@@ -334,6 +381,10 @@ async def get_prompt_by_image(
                                 stmt = stmt.where(ChatHistory.character_name == character_name)
                             stmt = stmt.order_by(ChatHistory.created_at.desc()).limit(1)
                             message = (await db.execute(stmt)).scalars().first()
+                            
+                            if not message and character_name:
+                                stmt_f = select(ChatHistory).where(ChatHistory.image_url.like(f"%{filename}"), ChatHistory.user_id == user_id)
+                                message = (await db.execute(stmt_f.order_by(ChatHistory.created_at.desc()).limit(1))).scalars().first()
                         
                         if not message:
                             stmt = select(ChatHistory).where(ChatHistory.image_url.like(f"%{filename}"))
@@ -341,6 +392,10 @@ async def get_prompt_by_image(
                                 stmt = stmt.where(ChatHistory.character_name == character_name)
                             stmt = stmt.order_by(ChatHistory.created_at.desc()).limit(1)
                             message = (await db.execute(stmt)).scalars().first()
+                            
+                            if not message and character_name:
+                                stmt_f = select(ChatHistory).where(ChatHistory.image_url.like(f"%{filename}"))
+                                message = (await db.execute(stmt_f.order_by(ChatHistory.created_at.desc()).limit(1))).scalars().first()
                         
                     if message:
                         log_debug(f"[PROMPT_DEBUG] FOUND in ChatHistory via Filename/Like.")

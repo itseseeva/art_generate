@@ -1700,13 +1700,24 @@ const SlideShow: React.FC<{
   return (
     <>
       <PhotoContainer $clickable={false} $isHovered={isHovered}>
-        <OptimizedImage
-          src={photos[currentSlide] || ''}
-          alt={`${characterName || 'Character'} - Slide ${currentSlide + 1} `}
-          eager={currentSlide === 0}
-          priority={currentSlide === 0}
-          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 300px"
-        />
+        <AnimatePresence>
+          <motion.div
+            key={currentSlide}
+            initial={{ opacity: 0, x: currentSlide % 2 === 0 ? '-15%' : '15%', scale: 0.95 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, scale: 1.05 }}
+            transition={{ duration: 0.8, ease: "easeOut" }}
+            style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
+          >
+            <OptimizedImage
+              src={photos[currentSlide] || ''}
+              alt={`${characterName || 'Character'} - Slide ${currentSlide + 1} `}
+              eager={currentSlide === 0}
+              priority={currentSlide === 0}
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 300px"
+            />
+          </motion.div>
+        </AnimatePresence>
       </PhotoContainer>
       {photos.length > 1 && !hideDots && (
         <SlideDots>
@@ -3088,12 +3099,12 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                   <FiTrash2 />
                 </DeleteIconWrap>
 
-                <DeleteConfirmTitle>Удалить персонажа?</DeleteConfirmTitle>
+                <DeleteConfirmTitle>{t('characterCard.deleteTitle', 'Удалить персонажа?')}</DeleteConfirmTitle>
 
                 <DeleteConfirmText>
-                  Вы уверены, что хотите удалить&nbsp;
-                  <span>{character.name}</span>?<br />
-                  Это действие невозможно отменить.
+                  {t('characterCard.deleteConfirmText', 'Вы уверены, что хотите удалить')}&nbsp;
+                  <span>{tChar('name') || character.name}</span>?<br />
+                  {t('characterCard.deleteWarning', 'Это действие невозможно отменить.')}
                 </DeleteConfirmText>
 
                 <DeleteConfirmButtons>
@@ -3105,7 +3116,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                     }}
                     disabled={isDeleting}
                   >
-                    Отмена
+                    {t('common.cancel', 'Отмена')}
                   </DeleteCancelBtn>
                   <DeleteConfirmBtn
                     $loading={isDeleting}
@@ -3116,7 +3127,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                     }}
                     disabled={isDeleting}
                   >
-                    {isDeleting ? 'Удаление...' : 'Удалить'}
+                    {isDeleting ? t('characterCard.deleting', 'Удаление...') : t('common.delete', 'Удалить')}
                   </DeleteConfirmBtn>
                 </DeleteConfirmButtons>
               </DeleteConfirmCard>

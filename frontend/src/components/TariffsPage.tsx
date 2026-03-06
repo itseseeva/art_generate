@@ -811,8 +811,17 @@ export const TariffsPage: React.FC = () => {
                   Банковские карты
                 </PaymentButton>
                 {currentLang === 'en' ? (
-                  <PaymentButton onClick={() => handleNowPaymentsPayment('standard')}>
-                    <span style={{ fontSize: '1.4rem', marginRight: '8px', marginLeft: '8px' }}>💰</span>
+                  <PaymentButton
+                    onClick={() => handleNowPaymentsPayment('standard')}
+                    style={{
+                      background: 'linear-gradient(90deg, #030712, #111827)',
+                      border: '1px solid rgba(99, 102, 241, 0.3)',
+                      boxShadow: '0 0 15px rgba(99, 102, 241, 0.1)'
+                    }}
+                  >
+                    <div style={{ width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '8px' }}>
+                      <img src="/i-removebg-preview.png" alt="Crypto" style={{ width: '24px', height: '24px', objectFit: 'contain' }} />
+                    </div>
                     Crypto
                   </PaymentButton>
                 ) : (
@@ -862,8 +871,17 @@ export const TariffsPage: React.FC = () => {
                   Банковские карты
                 </PaymentButton>
                 {currentLang === 'en' ? (
-                  <PaymentButton onClick={() => handleNowPaymentsPayment('premium')}>
-                    <span style={{ fontSize: '1.4rem', marginRight: '8px', marginLeft: '8px' }}>💰</span>
+                  <PaymentButton
+                    onClick={() => handleNowPaymentsPayment('premium')}
+                    style={{
+                      background: 'linear-gradient(90deg, #030712, #111827)',
+                      border: '1px solid rgba(99, 102, 241, 0.3)',
+                      boxShadow: '0 0 15px rgba(99, 102, 241, 0.1)'
+                    }}
+                  >
+                    <div style={{ width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '8px' }}>
+                      <img src="/i-removebg-preview.png" alt="Crypto" style={{ width: '24px', height: '24px', objectFit: 'contain' }} />
+                    </div>
                     Crypto
                   </PaymentButton>
                 ) : (
@@ -957,8 +975,17 @@ export const TariffsPage: React.FC = () => {
                               Банковские карты
                             </PaymentButton>
                             {currentLang === 'en' ? (
-                              <PaymentButton onClick={() => handleNowPaymentsCreditTopUp(pkg.id, pkg.price, pkg.credits)}>
-                                <span style={{ fontSize: '1.4rem', marginRight: '8px', marginLeft: '8px' }}>💰</span>
+                              <PaymentButton
+                                onClick={() => handleNowPaymentsCreditTopUp(pkg.id, pkg.price, pkg.credits)}
+                                style={{
+                                  background: 'linear-gradient(90deg, #030712, #111827)',
+                                  border: '1px solid rgba(99, 102, 241, 0.3)',
+                                  boxShadow: '0 0 15px rgba(99, 102, 241, 0.1)'
+                                }}
+                              >
+                                <div style={{ width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(99, 102, 241, 0.1)', borderRadius: '8px' }}>
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ width: '24px', height: '24px', margin: '0 auto', color: '#818cf8' }}><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" /></svg>
+                                </div>
                                 Crypto
                               </PaymentButton>
                             ) : (

@@ -9,9 +9,9 @@ import { useTranslation } from 'react-i18next';
 // --- Обновленный стиль контейнера ---
 const MessagesContainer = styled.div`
   flex: 1;
-  padding: ${theme.spacing.xl} ${theme.spacing.lg};
-  overflow-y: scroll; /* Changed to scroll to prevent shift when info block toggles */
-  overflow-x: hidden;
+  padding: ${theme.spacing.xl} 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
   /* Фон теперь задается через DarkVeil в BackgroundWrapper */
   background: transparent;
   position: relative;
@@ -58,6 +58,7 @@ const MessagesList = styled.div`
   min-height: min-content;
   min-width: 0;
   width: 100%;
+  margin: 0;
   position: relative;
   z-index: 11;
   flex: 1;
@@ -112,14 +113,25 @@ const LoadingDots = styled.div`
   }
 `;
 
-// --- Обновленная карточка ситуации ---
+const RoleSituationCardWrapper = styled.div`
+  display: grid;
+  grid-template-columns: minmax(60px, 1fr) minmax(0, 760px) minmax(60px, 1fr);
+  width: 100%;
+  margin-bottom: ${theme.spacing.xl};
+  
+  @media (max-width: 768px) {
+    display: flex;
+    padding: 0 ${theme.spacing.xs};
+  }
+`;
+
 const RoleSituationCard = styled.div`
+  grid-column: 2;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: ${theme.spacing.xl};
-  margin: 0 auto 0 auto;
   background: linear-gradient(135deg, rgba(30, 30, 30, 0.85) 0%, rgba(20, 20, 20, 0.95) 100%);
   backdrop-filter: blur(15px);
   -webkit-backdrop-filter: blur(15px);
@@ -132,8 +144,8 @@ const RoleSituationCard = styled.div`
   position: relative;
   z-index: 10;
   text-align: center;
-  max-width: 700px;
-  width: 90%;
+  width: 100%;
+  box-sizing: border-box;
   
   h3 {
     font-size: ${theme.fontSize.xl};
@@ -295,14 +307,20 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       <MessagesContainer ref={messagesContainerRef} style={{ position: 'relative', zIndex: 10, minWidth: 0 }}>
         <MessagesList style={{ position: 'relative', zIndex: 11 }}>
           {characterSituation && (
-            <RoleSituationCard>
-              <h3>{t('chat.roleplayingSituation')}</h3>
-              <p>{tChar('situation') || characterSituation}</p>
-            </RoleSituationCard>
+            <RoleSituationCardWrapper>
+              <RoleSituationCard>
+                <h3>{t('chat.roleplayingSituation')}</h3>
+                <p>{tChar('situation') || characterSituation}</p>
+              </RoleSituationCard>
+            </RoleSituationCardWrapper>
           )}
 
           {character && (
-            <CharacterInfoBlock character={character} />
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(60px, 1fr) minmax(0, 760px) minmax(60px, 1fr)', width: '100%' }}>
+              <div style={{ gridColumn: 2 }}>
+                <CharacterInfoBlock character={character} />
+              </div>
+            </div>
           )}
 
           {messages && messages.length > 0 && messages.map((message, index) => {

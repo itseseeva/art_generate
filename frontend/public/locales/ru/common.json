@@ -170,6 +170,7 @@
         "en": "English language"
     },
     "brevity": {
+        "mode": "Стиль ответов",
         "brief": "Кратко",
         "detailed": "Подробно",
         "tooltip": "Выберите длину ответов"
@@ -454,7 +455,11 @@
         "collapse": "Свернуть",
         "expand": "Развернуть",
         "exclusiveContent": "Эксклюзивный контент",
-        "getAccess": "Получить доступ к интимным фотографиям"
+        "getAccess": "Получить доступ к интимным фотографиям",
+        "deleteTitle": "Удалить персонажа?",
+        "deleteConfirmText": "Вы уверены, что хотите удалить",
+        "deleteWarning": "Это действие невозможно отменить.",
+        "deleting": "Удаление..."
     },
     "mainPage": {
         "loading": "Загрузка...",
@@ -567,10 +572,10 @@
         "currentPlan": "Текущий тариф",
         "perMonth": "мес",
         "billing": {
-            "yearly": "Год",
-            "sixMonths": "6 Месяцев",
-            "threeMonths": "3 Месяца",
-            "monthly": "Месяц",
+            "yearly": "Max",
+            "sixMonths": "Pro",
+            "threeMonths": "Plus",
+            "monthly": "Lite",
             "save": "ЭКОНОМИЯ"
         },
         "bestChoice": "Лучший Выбор",
@@ -715,6 +720,11 @@
     },
     "createCharacter": {
         "title": "Создание персонажа",
+        "defaultPrompt": {
+            "title": "Стандартный системный промпт",
+            "on": "Включены базовые правила 18+",
+            "off": "Включите базовые правила 18+"
+        },
         "buttons": {
             "create": "Создать персонажа",
             "save": "Сохранить",
@@ -1540,7 +1550,20 @@
         },
         "nav": {
             "toChat": "Перейти в чат",
-            "toMain": "На главную"
+            "toMain": "На главную",
+            "createPaidAlbum": "Создать платный альбом",
+            "generatedPhotos": "Сгенерированные фото ({{count}})"
         }
+    },
+    "voiceSelector": {
+        "title": "Выбор голоса",
+        "defaultTab": "Стандартные",
+        "userTab": "Пользовательские",
+        "showLess": "Скрыть",
+        "showMore": "Показать все",
+        "save": "Сохранить",
+        "premiumOnly": "Только для Premium",
+        "premiumMessage": "Этот голос доступен только для пользователей с Premium подпиской.",
+        "goToShop": "В магазин"
     }
 }

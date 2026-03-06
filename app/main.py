@@ -527,6 +527,160 @@ async def log_requests_middleware(request: Request, call_next):
         logger.error(f"[ERROR] {request.method} {request.url.path} -> {e}")
         raise
 
+# HTML-шаблон страницы 404 для прямого доступа к API
+_API_404_HTML = """<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>404 - Page Not Found</title>
+<link href="https://fonts.googleapis.com/css?family=Roboto+Mono" rel="stylesheet">
+<style>
+  *, *:before, *:after { box-sizing: border-box; }
+  html, body {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 16px;
+    margin: 0; padding: 0;
+    width: 100%; height: 100%;
+    background-color: #000;
+    user-select: none;
+    overflow: hidden;
+  }
+  .container { width: 100%; height: 100%; position: relative; }
+  .copy-container {
+    text-align: center;
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    display: inline-block;
+  }
+  p {
+    color: #fff;
+    font-size: 24px;
+    letter-spacing: .2px;
+    margin: 0;
+    white-space: nowrap;
+    display: inline-block;
+  }
+  .handle {
+    background: #ffe500;
+    width: 14px;
+    height: 30px;
+    top: 0; left: 0;
+    margin-top: 1px;
+    position: absolute;
+    animation: blink 0.4s infinite alternate;
+  }
+  @keyframes blink { from { opacity: 0; } to { opacity: 1; } }
+  .char {
+    display: inline-block;
+    opacity: 0;
+    animation: appear 0.001s forwards;
+  }
+  #cb-replay {
+    fill: #666;
+    width: 20px;
+    position: absolute;
+    right: 15px; bottom: 15px;
+    cursor: pointer;
+    overflow: visible;
+  }
+  #cb-replay:hover { fill: #888; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="copy-container">
+    <p id="text-output"></p>
+    <span class="handle" id="handle"></span>
+  </div>
+</div>
+
+<svg version="1.1" id="cb-replay" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 279.9 297.3" style="enable-background:new 0 0 279.9 297.3;">
+<g><path d="M269.4,162.6c-2.7,66.5-55.6,120.1-121.8,123.9c-77,4.4-141.3-60-136.8-136.9C14.7,81.7,71,27.8,140,27.8
+  c1.8,0,3.5,0,5.3,0.1c0.3,0,0.5,0.2,0.5,0.5v15c0,1.5,1.6,2.4,2.9,1.7l35.9-20.7c1.3-0.7,1.3-2.6,0-3.3L148.6,0.3
+  c-1.3-0.7-2.9,0.2-2.9,1.7v15c0,0.3-0.2,0.5-0.5,0.5c-1.7-0.1-3.5-0.1-5.2-0.1C63.3,17.3,1,78.9,0,155.4
+  C-1,233.8,63.4,298.3,141.9,297.3c74.6-1,135.1-60.2,138-134.3c0.1-3-2.3-5.4-5.3-5.4l0,0C271.8,157.6,269.5,159.8,269.4,162.6z"/></g>
+</svg>
+
+<script>
+  var text = "404, page not found.";
+  var output = document.getElementById("text-output");
+  var handle = document.getElementById("handle");
+  var replay = document.getElementById("cb-replay");
+  var delay = 80;
+
+  function animate() {
+    output.innerHTML = "";
+    handle.style.left = "0px";
+    handle.style.animation = "blink 0.4s infinite alternate";
+
+    var chars = text.split("");
+    chars.forEach(function(ch, i) {
+      setTimeout(function() {
+        var span = document.createElement("span");
+        span.textContent = ch;
+        span.className = "char";
+        span.style.opacity = "1";
+        output.appendChild(span);
+        var w = output.getBoundingClientRect().width;
+        handle.style.left = w + "px";
+        if (i === chars.length - 1) {
+          handle.style.animation = "none";
+          handle.style.opacity = "1";
+        }
+      }, i * delay);
+    });
+  }
+
+  animate();
+
+  replay.addEventListener("click", function() { animate(); });
+</script>
+</body>
+</html>"""
+
+
+# Middleware для блокировки прямого доступа к API из браузера
+@app.middleware("http")
+async def block_direct_api_access(request: Request, call_next):
+    """Блокирует прямой доступ к API эндпоинтам из браузера."""
+    path = request.url.path
+
+    # Только для API роутов
+    if path.startswith("/api/"):
+        # Разрешенные роуты для браузеров (OAuth и другие редиректы)
+        allowed_prefixes = [
+            "/api/v1/auth/google/login",
+            "/api/v1/auth/google/callback",
+        ]
+
+        is_allowed = any(path.startswith(prefix) for prefix in allowed_prefixes)
+
+        if not is_allowed:
+            fetch_mode = request.headers.get("sec-fetch-mode", "")
+            fetch_dest = request.headers.get("sec-fetch-dest", "")
+            accept = request.headers.get("accept", "")
+            user_agent = request.headers.get("user-agent", "").lower()
+
+            is_browser = any(b in user_agent for b in ["mozilla", "chrome", "safari", "firefox", "edge", "opera"])
+
+            is_direct_navigation = False
+
+            # Современные браузеры: sec-fetch-mode=navigate (самый надёжный признак)
+            if fetch_mode == "navigate":
+                is_direct_navigation = True
+            # Fallback: браузер без Fetch Metadata заголовков (старые/нестандартные)
+            elif is_browser and not fetch_mode and "text/html" in accept and "application/json" not in accept:
+                is_direct_navigation = True
+
+            if is_direct_navigation:
+                logger.warning(f"[SECURITY] Заблокирован прямой доступ браузера к API: {path}")
+                return HTMLResponse(content=_API_404_HTML, status_code=404)
+
+    return await call_next(request)
+
+
 # Настройка сессий для OAuth (должен быть ПЕРВЫМ, до CORS)
 # Используем Lax для SameSite, чтобы куки передавались при редиректах от Google
 app.add_middleware(
@@ -934,6 +1088,17 @@ try:
             logger.warning(f"[DEBUG] Папка {DEFAULT_CHARACTER_VOICES_DIR} не существует!")
     except Exception as e:
         logger.warning(f"[WARNING] Не удалось смонтировать папку дефолтных голосов: {e}")
+
+    # Монтируем папку для EN голосов персонажей
+    try:
+        from app.config.paths import EN_CHARACTER_VOICES_DIR
+        if EN_CHARACTER_VOICES_DIR.exists():
+            app.mount("/en_voices", StaticFiles(directory=str(EN_CHARACTER_VOICES_DIR), html=False), name="en_voices")
+            logger.info("[DEBUG] Папка /en_voices успешно смонтирована")
+        else:
+            logger.warning(f"[DEBUG] Папка EN голосов {EN_CHARACTER_VOICES_DIR} не существует!")
+    except Exception as e:
+        logger.warning(f"[WARNING] Не удалось смонтировать папку EN голосов: {e}")
     
     # Монтируем папку для пользовательских голосов
     try:
@@ -5484,6 +5649,14 @@ async def get_generation_status(
                             parts = normalized_url.split('/')
                             if parts:
                                 filename = parts[-1]
+                                
+                        # КРИТИЧЕСКИ ВАЖНО: Обновляем сам result, чтобы фронтенд получил CDN URL
+                        # иначе фронтенд сохранит обычный URL, а при "добавлении" фото создастся дубликат без промпта
+                        if isinstance(result, dict):
+                            if "image_url" in result and result["image_url"]:
+                                result["image_url"] = normalized_url
+                            if "cloud_url" in result and result["cloud_url"]:
+                                result["cloud_url"] = normalized_url
                         
                         if real_prompt:
                             # Обновляем ChatHistory только если skip_chat_history = False

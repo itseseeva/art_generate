@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Optional
 from fishaudio import FishAudio
 from fishaudio.types import ReferenceAudio
-from app.config.paths import VOICES_DIR, DEFAULT_CHARACTER_VOICES_DIR, USER_VOICES_DIR
+from app.config.paths import VOICES_DIR, DEFAULT_CHARACTER_VOICES_DIR, USER_VOICES_DIR, EN_CHARACTER_VOICES_DIR
 from app.config.settings import settings
 from app.utils.logger import logger
 
@@ -65,8 +65,11 @@ def _load_voice_audio(voice_id: str, is_user_voice: bool = False) -> Optional[by
         Аудио данные в формате bytes или None в случае ошибки
     """
     try:
+        en_voices = {"Anne.mp3", "Catherine.mp3", "EVA.mp3", "Eleanor.mp3", "Kogami.mp3", "Victoria.mp3"}
         if is_user_voice:
             voice_path = USER_VOICES_DIR / voice_id
+        elif voice_id in en_voices:
+            voice_path = EN_CHARACTER_VOICES_DIR / voice_id
         else:
             voice_path = DEFAULT_CHARACTER_VOICES_DIR / voice_id
         
@@ -122,6 +125,10 @@ async def generate_tts_audio(text: str, voice_url: str) -> Optional[str]:
             voice_id = voice_url.replace('/default_character_voices/', '')
         elif 'default_character_voices' in voice_url:
             voice_id = voice_url.split('default_character_voices/')[-1]
+        elif voice_url.startswith('/en_voices/'):
+            voice_id = voice_url.replace('/en_voices/', '')
+        elif 'en_voices' in voice_url:
+            voice_id = voice_url.split('en_voices/')[-1]
         elif voice_url.startswith('/user_voices/'):
             voice_id = voice_url.replace('/user_voices/', '')
             is_user_voice = True
@@ -130,7 +137,7 @@ async def generate_tts_audio(text: str, voice_url: str) -> Optional[str]:
             is_user_voice = True
         else:
             logger.error(f"Неподдерживаемый формат voice_url: {voice_url}")
-            logger.error("Ожидается формат: /default_character_voices/filename.mp3 или /user_voices/filename.mp3")
+            logger.error("Ожидается формат: /default_character_voices/filename.mp3, /en_voices/filename.mp3 или /user_voices/filename.mp3")
             return None
         
         # Загружаем аудио образец голоса
@@ -214,15 +221,21 @@ def get_voice_url_by_id(voice_id: str) -> Optional[str]:
         Полный URL к файлу голоса или None если файл не найден
     """
     try:
-        voice_path = DEFAULT_CHARACTER_VOICES_DIR / voice_id
+        en_voices = {"Anne.mp3", "Catherine.mp3", "EVA.mp3", "Eleanor.mp3", "Kogami.mp3", "Victoria.mp3"}
+        
+        if voice_id in en_voices:
+            voice_path = EN_CHARACTER_VOICES_DIR / voice_id
+            url_prefix = "/en_voices"
+        else:
+            voice_path = DEFAULT_CHARACTER_VOICES_DIR / voice_id
+            url_prefix = "/default_character_voices"
         
         if not voice_path.exists():
             logger.error(f"Файл голоса не найден: {voice_path}")
             return None
             
-        # Возвращаем URL в формате /default_character_voices/filename.mp3
-        # который будет доступен через StaticFiles mount
-        voice_url = f"/default_character_voices/{voice_id}"
+        # Возвращаем URL в формате /default_character_voices/filename.mp3 или /en_voices/filename.mp3
+        voice_url = f"{url_prefix}/{voice_id}"
         logger.info(f"Получен URL голоса для {voice_id}: {voice_url}")
         return voice_url
         

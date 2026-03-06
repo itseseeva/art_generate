@@ -164,6 +164,7 @@
         "en": "English language"
     },
     "brevity": {
+        "mode": "Response style",
         "brief": "Brief",
         "detailed": "Detailed",
         "tooltip": "Choose response length"
@@ -448,7 +449,11 @@
         "collapse": "Collapse",
         "expand": "Expand",
         "exclusiveContent": "Exclusive Content",
-        "getAccess": "Get Access to Intimate Photos"
+        "getAccess": "Get Access to Intimate Photos",
+        "deleteTitle": "Delete character?",
+        "deleteConfirmText": "Are you sure you want to delete",
+        "deleteWarning": "This action cannot be undone.",
+        "deleting": "Deleting..."
     },
     "mainPage": {
         "loading": "Loading...",
@@ -561,10 +566,10 @@
         "currentPlan": "Current Plan",
         "perMonth": "mo",
         "billing": {
-            "yearly": "Year",
-            "sixMonths": "6 Months",
-            "threeMonths": "3 Months",
-            "monthly": "Month",
+            "yearly": "Max",
+            "sixMonths": "Pro",
+            "threeMonths": "Plus",
+            "monthly": "Lite",
             "save": "SAVE"
         },
         "bestChoice": "Best Choice",
@@ -705,6 +710,11 @@
         "confirmPasswordError": "Error confirming password change"
     },
     "createCharacter": {
+        "defaultPrompt": {
+            "title": "Default System Prompt",
+            "on": "Basic rules enabled 18+",
+            "off": "Enable basic rules 18+"
+        },
         "buttons": {
             "create": "Create Character",
             "save": "Save Character",
@@ -1608,7 +1618,20 @@
         },
         "nav": {
             "toChat": "Go to chat",
-            "toMain": "To main page"
+            "toMain": "To main page",
+            "createPaidAlbum": "Create paid album",
+            "generatedPhotos": "Generated photos ({{count}})"
         }
+    },
+    "voiceSelector": {
+        "title": "Select Voice",
+        "defaultTab": "Default Voices",
+        "userTab": "User Voices",
+        "showLess": "Show Less",
+        "showMore": "Show More",
+        "save": "Save",
+        "premiumOnly": "Premium Only",
+        "premiumMessage": "This voice is available only for Premium subscribers.",
+        "goToShop": "Go to Shop"
     }
 }

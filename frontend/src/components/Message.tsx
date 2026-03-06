@@ -14,14 +14,19 @@ import { PromptGlassModal } from './PromptGlassModal';
 import { VoiceSelectorModal } from './VoiceSelectorModal';
 
 const MessageContainer = styled.div<{ $isUser: boolean }>`
-  display: flex !important;
-  align-items: flex-start;
-  justify-content: ${props => props.$isUser ? 'flex-end' : 'flex-start'};
-  gap: ${theme.spacing.md};
+  display: grid !important;
+  grid-template-columns: minmax(60px, 1fr) minmax(0, 760px) minmax(60px, 1fr);
+  width: 100%;
   margin-bottom: ${theme.spacing.md};
   position: relative;
   z-index: 10;
-  width: 100%;
+  
+  @media (max-width: 768px) {
+    display: flex !important;
+    align-items: flex-start;
+    justify-content: ${props => props.$isUser ? 'flex-end' : 'flex-start'};
+    gap: ${theme.spacing.md};
+  }
   /* DEBUG: Принудительные стили видимости */
   visibility: visible !important;
   opacity: 1 !important;
@@ -41,6 +46,8 @@ const MessageWithButtons = styled.div`
 `;
 
 const MessageContent = styled.div<{ $isUser: boolean; $imageOnly?: boolean }>`
+  grid-column: 2;
+  justify-self: ${props => props.$isUser ? 'end' : 'start'};
   max-width: ${props => props.$imageOnly ? 'none' : '100%'};
   padding: ${props => props.$imageOnly ? '0 !important' : theme.spacing.lg};
   border-radius: ${props => props.$imageOnly
@@ -227,7 +234,7 @@ const MessageTime = styled.div<{ $isUser: boolean }>`
   text-align: ${props => props.$isUser ? 'right' : 'left'};
 `;
 
-const Avatar = styled.div<{ $isUser: boolean; $avatarUrl?: string }>`
+const Avatar = styled.div<{ $isUser: boolean; $avatarUrl?: string; $isMobile: boolean }>`
   width: 40px;
   height: 40px;
   border-radius: ${theme.borderRadius.full};
@@ -251,8 +258,13 @@ const Avatar = styled.div<{ $isUser: boolean; $avatarUrl?: string }>`
   };
   flex-shrink: 0;
   overflow: hidden;
+  grid-column: ${props => props.$isUser ? 3 : 1};
+  justify-self: ${props => props.$isUser ? 'start' : 'end'};
+  margin: ${props => props.$isUser ? '0 0 0 16px' : '0 16px 0 0'};
+  margin-top: 4px;
 
   @media (max-width: 768px) {
+    margin: 0;
     width: 32px;
     height: 32px;
     font-size: ${theme.fontSize.base};
@@ -1291,22 +1303,15 @@ const MessageComponent: React.FC<MessageProps> = ({
     }
   };
 
-  // Для прогресса генерации - отображаем БЕЗ MessageContent контейнера (прозрачный фон)
-  // Убираем аватар при генерации фото
+  // Для прогресса генерации - отображаем в той же сетке что обычные сообщения
   if (isGenerationProgress && !hasValidImageUrl) {
     return (
-      <>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'flex-start',
-          alignItems: 'flex-start',
-          marginBottom: '0.5rem',
-          width: '100%',
-          gap: '1rem'
-        }}>
+      <MessageContainer $isUser={false}>
+        <Avatar $isUser={false} $isMobile={isMobile} style={{ visibility: 'hidden' }} />
+        <MessageContent $isUser={false} $imageOnly={true} style={{ gridColumn: 2, background: 'transparent', border: 'none', boxShadow: 'none', padding: 0 }}>
           <CircularProgress progress={progressValue} size={60} showLabel={false} />
-        </div>
-      </>
+        </MessageContent>
+      </MessageContainer>
     );
   }
 
@@ -1318,21 +1323,9 @@ const MessageComponent: React.FC<MessageProps> = ({
   if (hasOnlyImage) {
     return (
       <>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'flex-start',
-          alignItems: 'flex-start',
-          marginBottom: '0.5rem',
-          width: '100%',
-          gap: '1rem'
-        }}>
-          <div style={{
-            position: 'relative',
-            background: 'transparent',
-            padding: 0,
-            border: 'none',
-            boxShadow: 'none'
-          }}>
+        <MessageContainer $isUser={false}>
+          <Avatar $isUser={false} $isMobile={isMobile} style={{ visibility: 'hidden' }} />
+          <MessageContent $isUser={false} $imageOnly={true} style={{ gridColumn: 2, background: 'transparent', border: 'none', boxShadow: 'none', padding: 0 }}>
             <ImageContainer
               onClick={hasValidImageUrl ? handleImageClick : undefined}
               style={{ cursor: hasValidImageUrl ? 'pointer' : 'default' }}
@@ -1378,8 +1371,9 @@ const MessageComponent: React.FC<MessageProps> = ({
                 </ImageButtons>
               )}
             </ImageContainer>
-          </div>
-        </div>
+          </MessageContent>
+        </MessageContainer>
+
         <PromptGlassModal
           isOpen={isFullscreen && !!message.imageUrl}
           onClose={handleCloseFullscreen}
@@ -1415,7 +1409,7 @@ const MessageComponent: React.FC<MessageProps> = ({
       <MessageContainer $isUser={isUser}>
         {/* Аватар модели слева */}
         {!isUser && (
-          <Avatar $isUser={false} $avatarUrl={characterAvatar}>
+          <Avatar $isUser={false} $avatarUrl={characterAvatar} $isMobile={isMobile}>
             {characterAvatar ? (
               <AvatarImage src={characterAvatar} alt={characterName || 'Character'} />
             ) : (
@@ -1579,7 +1573,7 @@ const MessageComponent: React.FC<MessageProps> = ({
 
         {/* Аватар пользователя справа */}
         {isUser && (message.content || !hasValidImageUrl) && (
-          <Avatar $isUser={true} $avatarUrl={userAvatar}>
+          <Avatar $isUser={true} $avatarUrl={userAvatar} $isMobile={isMobile}>
             {userAvatar ? (
               <AvatarImage src={userAvatar} alt="User" />
             ) : (

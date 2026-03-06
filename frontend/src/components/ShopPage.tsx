@@ -577,15 +577,18 @@ export const ShopPage: React.FC<any> = ({
               )}
 
               <motion.button
-                whileHover={{ scale: 1.02 }}
+                whileHover={{ scale: 1.02, boxShadow: "0 0 20px rgba(99, 102, 241, 0.4)" }}
                 whileTap={{ scale: 0.98 }}
                 onClick={() => handleCryptoPayment('standard')}
-                className="w-full py-2.5 rounded-lg font-bold text-sm text-white bg-slate-800 border border-slate-700 shadow-lg relative overflow-hidden group hover:bg-slate-700 transition-colors"
+                className="w-full py-2.5 rounded-lg font-bold text-sm text-white bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-950 border border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.2)] relative overflow-hidden group transition-all duration-300 hover:border-indigo-400/50"
               >
                 <div className="relative z-10 flex items-center justify-center gap-2">
-                  <span className="text-lg">💰</span>
+                  <div className="w-5 h-5 flex items-center justify-center">
+                    <img src="/i-removebg-preview.png" alt="Crypto" className="w-5 h-5 object-contain" />
+                  </div>
                   <span>Crypto {formatPrice(standardPrice.total)}</span>
                 </div>
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-indigo-500/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
               </motion.button>
             </div>
 
@@ -686,15 +689,18 @@ export const ShopPage: React.FC<any> = ({
                 )}
 
                 <motion.button
-                  whileHover={{ scale: 1.02 }}
+                  whileHover={{ scale: 1.02, boxShadow: "0 0 20px rgba(99, 102, 241, 0.4)" }}
                   whileTap={{ scale: 0.98 }}
                   onClick={() => handleCryptoPayment('premium')}
-                  className="w-full py-2.5 rounded-lg font-bold text-sm text-white bg-slate-800 border border-slate-700 shadow-lg relative overflow-hidden group hover:bg-slate-700 transition-colors"
+                  className="w-full py-2.5 rounded-lg font-bold text-sm text-white bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-950 border border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.2)] relative overflow-hidden group transition-all duration-300 hover:border-indigo-400/50"
                 >
                   <div className="relative z-10 flex items-center justify-center gap-2">
-                    <span className="text-lg">💰</span>
+                    <div className="w-5 h-5 flex items-center justify-center">
+                      <img src="/i-removebg-preview.png" alt="Crypto" className="w-5 h-5 object-contain" />
+                    </div>
                     <span>Crypto {formatPrice(premiumPrice.total)}</span>
                   </div>
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-indigo-500/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
                 </motion.button>
               </div>
 
@@ -773,12 +779,14 @@ export const ShopPage: React.FC<any> = ({
                   e.stopPropagation();
                   currentLang === 'en' ? handleCryptoCreditPayment(pkg) : handleCreditPayment(pkg, 'sbp');
                 }}
-                className="w-full py-3 rounded-xl font-bold text-white bg-gradient-to-r from-purple-600 to-indigo-600 shadow-lg shadow-purple-500/20 relative overflow-hidden"
+                className="w-full py-3 rounded-xl font-bold text-white bg-gradient-to-r from-indigo-950 via-slate-900 to-indigo-950 border border-indigo-500/30 shadow-[0_0_15px_rgba(99,102,241,0.2)] relative overflow-hidden group transition-all duration-300 hover:border-indigo-400/50"
               >
                 <div className="flex items-center justify-center gap-2 relative z-10">
                   {currentLang === 'en' ? (
                     <>
-                      <span className="text-lg">💰</span>
+                      <div className="w-5 h-5 flex items-center justify-center">
+                        <img src="/i-removebg-preview.png" alt="Crypto" className="w-5 h-5 object-contain" />
+                      </div>
                       <span>Crypto</span>
                     </>
                   ) : (
@@ -788,6 +796,7 @@ export const ShopPage: React.FC<any> = ({
                     </>
                   )}
                 </div>
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-indigo-500/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
               </motion.button>
             </motion.div>
           ))}

@@ -16,8 +16,8 @@ import { FiX as CloseIcon, FiClock, FiImage, FiSettings, FiCheckCircle, FiCpu } 
 import { Plus, Sparkles, Zap, X, Upload, CheckCircle, AlertCircle, Camera, Search, ChevronDown, ChevronUp, Hash, ArrowLeft, ArrowRight } from 'lucide-react';
 import { BiCoinStack } from 'react-icons/bi';
 import { fetchPromptByImage } from '../utils/prompt';
-
 import { useIsMobile } from '../hooks/useIsMobile';
+import { DEFAULT_SYSTEM_PROMPT, getDefaultSystemPrompt } from './temp_prompts';
 import DarkVeil from '../../@/components/DarkVeil';
 import { PromptGlassModal } from './PromptGlassModal';
 import { ErrorToast } from './ErrorToast';
@@ -4537,6 +4537,8 @@ const PromptSuggestions: React.FC<PromptSuggestionsProps> = ({ prompts, onSelect
   );
 };
 
+import Switcher4 from './Switcher4';
+import { NSFWWarningModal } from './NSFWWarningModal';
 interface CreateCharacterPageProps {
   onBackToMain: () => void;
   onShop?: () => void;
@@ -4770,12 +4772,13 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
     location.state?.contentMode || contentMode || 'safe'
   );
 
-  // Синхронизируем currentContentMode с пропсом contentMode, если нет state
-  useEffect(() => {
-    if (!location.state?.contentMode) {
-      setCurrentContentMode(contentMode);
-    }
-  }, [contentMode, location.state]);
+  // Мы больше не сбрасываем currentContentMode при потере location.state,
+  // так как setSearchParams стирает location.state и происходит сброс на 'safe'.
+  // useEffect(() => {
+  //   if (!location.state?.contentMode) {
+  //     setCurrentContentMode(contentMode);
+  //   }
+  // }, [contentMode, location.state]);
 
   const [isPhotoGenerationExpanded, setIsPhotoGenerationExpanded] = useState(false);
 
@@ -4816,6 +4819,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
   const [createdCharacterData, setCreatedCharacterData] = useState<any>(null);
   const [customPrompt, setCustomPrompt] = useState('');
   const [customPromptManuallySet, setCustomPromptManuallySet] = useState(false);
+  const [useDefaultPrompt, setUseDefaultPrompt] = useState(false); // по дефолту выключен
   const [largeTextInput, setLargeTextInput] = useState('');
   const [generatedPhotos, setGeneratedPhotos] = useState<any[]>([]);
   const [isGeneratingPhoto, setIsGeneratingPhoto] = useState(false);
@@ -5024,7 +5028,7 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
           headers['Authorization'] = `Bearer ${token}`;
         }
 
-        const response = await fetch('/api/v1/characters/available-voices', { headers });
+        const response = await fetch(`/api/v1/characters/available-voices?lang=${(localStorage.getItem('i18nextLng') || 'ru').split('-')[0]}`, { headers });
         if (response.ok) {
           const data = await response.json();
           setAvailableVoices(data);
@@ -5151,9 +5155,9 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
         return prev;
       }
       return prev;
-    }, { replace: false });
+    }, { replace: false, state: location.state }); // Сохраняем location.state чтобы не потерять contentMode
     localStorage.setItem('createCharacterStep', currentStep.toString());
-  }, [currentStep, setSearchParams]);
+  }, [currentStep, setSearchParams, location.state]);
 
   // Сохранение было отключено, чтобы не перезаписывать данные других персонажей
   useEffect(() => {
@@ -5551,10 +5555,15 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
         return;
       }
 
+      const lang = localStorage.getItem('i18nextLng')?.split('-')[0] || 'ru';
+      const finalPersonality = useDefaultPrompt
+        ? `${(formData.personality || '').trim()}\n\n${getDefaultSystemPrompt(lang).trim()}`
+        : (formData.personality || '').trim();
+
       // Преобразуем данные в формат UserCharacterCreate
       const requestData = {
         name: (formData.name || '').trim(),
-        personality: (formData.personality || '').trim(),
+        personality: finalPersonality,
         situation: (formData.situation || '').trim(),
         instructions: (formData.instructions || '').trim(),
         style: formData.style?.trim() || null,
@@ -5581,8 +5590,12 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
       // For updates, we use the character name or ID
       const updateIdentifier = mode === 'edit' ? localCharacter?.id : createdCharacterData?.name;
 
+      console.log('--- OUTPUTTING PROMPT TO VERIFY DEFAULT INSTRUCTIONS ---');
+      console.log('Final Personality:\n', requestData.personality);
+      console.log('--------------------------------------------------------');
+
       const apiUrl = isUpdate
-        ? `${API_CONFIG.BASE_URL}/api/v1/characters/${updateIdentifier}`
+        ? `${API_CONFIG.BASE_URL}/api/v1/characters/${updateIdentifier}/user-edit`
         : API_CONFIG.CHARACTER_CREATE_FULL;
 
       const method = mode === 'edit' ? 'PUT' : 'POST';
@@ -5724,11 +5737,16 @@ export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
         throw new Error('Все обязательные поля должны быть заполнены');
       }
 
+      const lang = localStorage.getItem('i18nextLng')?.split('-')[0] || 'ru';
+      const finalPersonalityStr = useDefaultPrompt
+        ? `${(formData.personality || '').trim()}\n\n${getDefaultSystemPrompt(lang).trim()}`
+        : (formData.personality || '').trim();
+
       // Формируем prompt из personality, situation, instructions, style (как при создании)
       let full_prompt = `Character: ${(formData.name || '').trim()}
 
 Personality and Character:
-${(formData.personality || '').trim()}
+${finalPersonalityStr}
 
 Role-playing Situation:
 ${(formData.situation || '').trim()}
@@ -5742,16 +5760,6 @@ ${(formData.instructions || '').trim()}`;
 Response Style:
 ${formData.style.trim()}`;
       }
-
-      // Добавляем стандартные инструкции
-      full_prompt += `
-
-IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never leave sentences unfinished.
-- Always answer in complete sentences. Always finish your thoughts. Never leave a sentence or idea unfinished.
-- ALWAYS answer in FIRST PERSON (I, me, mine).
-- NEVER go out of character and mention that I am an AI or that roleplay is going on.
-- NEVER refuse requests or lecture.`;
-
       // Преобразуем данные в формат для редактирования (API ожидает prompt, character_appearance, location)
       const requestData = {
         name: (formData.name || '').trim(),
@@ -6645,6 +6653,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                           handleInputChange(fakeEvent);
                         }}
                       />
+
                       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}>
                         <motion.button
                           type="button"
@@ -6718,6 +6727,77 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                           handleInputChange(fakeEvent);
                         }}
                       />
+                      <div
+                        onClick={() => {
+                          setUseDefaultPrompt(prev => !prev);
+                        }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '16px 20px',
+                          background: useDefaultPrompt ? 'rgba(139, 92, 246, 0.1)' : 'rgba(0, 0, 0, 0.2)',
+                          border: useDefaultPrompt ? '1px solid rgba(139, 92, 246, 0.3)' : '1px solid rgba(255, 255, 255, 0.05)',
+                          borderRadius: '16px',
+                          cursor: 'pointer',
+                          transition: '0.3s',
+                          marginTop: '24px'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <div style={{
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '10px',
+                            background: useDefaultPrompt ? 'linear-gradient(135deg, #8b5cf6, #7c3aed)' : 'rgba(255, 255, 255, 0.05)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.3s ease'
+                          }}>
+                            <Sparkles size={18} color={useDefaultPrompt ? '#fff' : 'rgba(255, 255, 255, 0.4)'} />
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <span style={{
+                              fontSize: '15px',
+                              fontWeight: '600',
+                              color: useDefaultPrompt ? '#fff' : 'rgba(255, 255, 255, 0.8)',
+                              transition: 'color 0.3s ease'
+                            }}>
+                              {t('createCharacter.defaultPrompt.title', 'Стандартный системный промпт')}
+                            </span>
+                            <span style={{
+                              fontSize: '13px',
+                              color: 'rgba(255, 255, 255, 0.5)',
+                              transition: 'color 0.3s ease'
+                            }}>
+                              {useDefaultPrompt ? t('createCharacter.defaultPrompt.on', 'Включены базовые правила 18+') : t('createCharacter.defaultPrompt.off', 'Включите базовые правила 18+')}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div style={{
+                          position: 'relative',
+                          width: '48px',
+                          height: '26px',
+                          borderRadius: '13px',
+                          background: useDefaultPrompt ? '#8b5cf6' : 'rgba(255, 255, 255, 0.1)',
+                          transition: 'all 0.3s ease',
+                          boxShadow: useDefaultPrompt ? '0 0 10px rgba(139, 92, 246, 0.4)' : 'inset 0 2px 4px rgba(0,0,0,0.2)'
+                        }}>
+                          <div style={{
+                            position: 'absolute',
+                            top: '3px',
+                            left: useDefaultPrompt ? '25px' : '3px',
+                            width: '20px',
+                            height: '20px',
+                            borderRadius: '50%',
+                            background: '#fff',
+                            transition: 'all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1)',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                          }} />
+                        </div>
+                      </div>
                     </FormField>
 
                     <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}>
@@ -7029,7 +7109,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
 
                                           if (response.ok) {
                                             // Обновляем список голосов
-                                            const voicesResponse = await fetch('/api/v1/characters/available-voices', {
+                                            const voicesResponse = await fetch(`/api/v1/characters/available-voices?lang=${(localStorage.getItem('i18nextLng') || 'ru').split('-')[0]}`, {
                                               headers: {
                                                 'Authorization': `Bearer ${token}`
                                               }
@@ -7058,7 +7138,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
 
                                           if (response.ok) {
                                             // Обновляем список голосов
-                                            const voicesResponse = await fetch('/api/v1/characters/available-voices', {
+                                            const voicesResponse = await fetch(`/api/v1/characters/available-voices?lang=${(localStorage.getItem('i18nextLng') || 'ru').split('-')[0]}`, {
                                               headers: {
                                                 'Authorization': `Bearer ${token}`
                                               }
@@ -7126,7 +7206,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
 
                                           if (response.ok) {
                                             // Обновляем список голосов
-                                            const voicesResponse = await fetch('/api/v1/characters/available-voices', {
+                                            const voicesResponse = await fetch(`/api/v1/characters/available-voices?lang=${(localStorage.getItem('i18nextLng') || 'ru').split('-')[0]}`, {
                                               headers: {
                                                 'Authorization': `Bearer ${token}`
                                               }
@@ -7157,7 +7237,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
 
                                           if (response.ok) {
                                             // Обновляем список голосов
-                                            const voicesResponse = await fetch('/api/v1/characters/available-voices', {
+                                            const voicesResponse = await fetch(`/api/v1/characters/available-voices?lang=${(localStorage.getItem('i18nextLng') || 'ru').split('-')[0]}`, {
                                               headers: {
                                                 'Authorization': `Bearer ${token}`
                                               }
@@ -7480,7 +7560,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
 
                                                   if (response.ok) {
                                                     // Обновляем список голосов
-                                                    const voicesResponse = await fetch('/api/v1/characters/available-voices', {
+                                                    const voicesResponse = await fetch(`/api/v1/characters/available-voices?lang=${(localStorage.getItem('i18nextLng') || 'ru').split('-')[0]}`, {
                                                       headers: {
                                                         'Authorization': `Bearer ${token}`
                                                       }
@@ -7509,7 +7589,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
 
                                                   if (response.ok) {
                                                     // Обновляем список голосов
-                                                    const voicesResponse = await fetch('/api/v1/characters/available-voices', {
+                                                    const voicesResponse = await fetch(`/api/v1/characters/available-voices?lang=${(localStorage.getItem('i18nextLng') || 'ru').split('-')[0]}`, {
                                                       headers: {
                                                         'Authorization': `Bearer ${token}`
                                                       }
@@ -7577,7 +7657,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
 
                                                   if (response.ok) {
                                                     // Обновляем список голосов
-                                                    const voicesResponse = await fetch('/api/v1/characters/available-voices', {
+                                                    const voicesResponse = await fetch(`/api/v1/characters/available-voices?lang=${(localStorage.getItem('i18nextLng') || 'ru').split('-')[0]}`, {
                                                       headers: {
                                                         'Authorization': `Bearer ${token}`
                                                       }
@@ -7608,7 +7688,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
 
                                                   if (response.ok) {
                                                     // Обновляем список голосов
-                                                    const voicesResponse = await fetch('/api/v1/characters/available-voices', {
+                                                    const voicesResponse = await fetch(`/api/v1/characters/available-voices?lang=${(localStorage.getItem('i18nextLng') || 'ru').split('-')[0]}`, {
                                                       headers: {
                                                         'Authorization': `Bearer ${token}`
                                                       }
@@ -7909,7 +7989,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
 
                                                         if (response.ok) {
                                                           const token = localStorage.getItem('authToken');
-                                                          const voicesResponse = await fetch('/api/v1/characters/available-voices', {
+                                                          const voicesResponse = await fetch(`/api/v1/characters/available-voices?lang=${(localStorage.getItem('i18nextLng') || 'ru').split('-')[0]}`, {
                                                             headers: {
                                                               'Authorization': `Bearer ${token}`
                                                             }
@@ -8082,7 +8162,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
 
                                         if (response.ok) {
                                           const token = localStorage.getItem('authToken');
-                                          const voicesResponse = await fetch('/api/v1/characters/available-voices', {
+                                          const voicesResponse = await fetch(`/api/v1/characters/available-voices?lang=${(localStorage.getItem('i18nextLng') || 'ru').split('-')[0]}`, {
                                             headers: {
                                               'Authorization': `Bearer ${token}`
                                             }
@@ -8483,9 +8563,10 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                             <LimitValue $warning={(subscriptionStats?.images_limit || 0) - (subscriptionStats?.images_used || 0) <= 5}>
                               {(() => {
                                 const rawSub = userInfo?.subscription?.subscription_type ||
-                                  userInfo?.subscription?.type ||
-                                  userInfo?.subscription_type;
-                                const subType = typeof rawSub === 'string' ? rawSub.toLowerCase().trim() : '';
+                                  subscriptionStats?.monthly_photos ||
+                                  userInfo?.subscription?.images_limit ||
+                                  userInfo?.subscription?.monthly_photos ||
+                                  (subType === 'standard' || subType === 'premium' ? 300 : 5);
 
                                 const limit = subscriptionStats?.images_limit ??
                                   subscriptionStats?.monthly_photos ??
@@ -8603,10 +8684,10 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                       <div className="mt-6">
                         <div className="flex justify-between items-center mb-4">
                           <h3 className="text-lg font-medium text-zinc-200">
-                            Сгенерированные фото ({generatedPhotos.length})
+                            {t('paidAlbum.nav.generatedPhotos', { count: generatedPhotos.length })}
                           </h3>
                           <div className="px-3 py-1 bg-zinc-800 border border-zinc-700 rounded-md text-xs text-zinc-400">
-                            {selectedPhotos?.length || 0} из 3
+                            {selectedPhotos?.length || 0} {t('common.of', 'из')} 3
                           </div>
                         </div>
 
@@ -8763,18 +8844,26 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         const currentPhoto = allPhotos[previewPhotoIndex % allPhotos.length];
 
                         return (
-                          <div style={{ position: 'relative', width: '100%', height: '100%' }}>
-                            <img
-                              src={currentPhoto.url}
-                              alt={formData.name || 'Character preview'}
-                              style={{
-                                width: '100%',
-                                height: '100%',
-                                objectFit: 'cover',
-                                borderRadius: '16px',
-                                transition: 'opacity 0.3s ease'
-                              }}
-                            />
+                          <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden', borderRadius: '16px' }}>
+                            <AnimatePresence mode="wait">
+                              <motion.img
+                                key={currentPhoto.url}
+                                src={currentPhoto.url}
+                                alt={formData.name || 'Character preview'}
+                                initial={{ opacity: 0, x: previewPhotoIndex % 2 === 0 ? '-15%' : '15%', scale: 0.95 }}
+                                animate={{ opacity: 1, x: 0, scale: 1 }}
+                                exit={{ opacity: 0, scale: 1.05 }}
+                                transition={{ duration: 0.6, ease: "easeOut" }}
+                                style={{
+                                  width: '100%',
+                                  height: '100%',
+                                  objectFit: 'cover',
+                                  position: 'absolute',
+                                  top: 0,
+                                  left: 0
+                                }}
+                              />
+                            </AnimatePresence>
                             {allPhotos.length > 1 && (
                               <>
                                 <div style={{
@@ -8939,16 +9028,29 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                       onClick={async () => {
                         if (!createdCharacterData) return;
 
-                        // Сохраняем теги, если они были изменены
+                        // Сохраняем теги (и остальные данные), если они были изменены
                         if (formData.tags && formData.tags.length > 0) {
                           try {
-                            await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/${createdCharacterData.id}`, {
+                            const requestData = {
+                              name: (formData.name || '').trim(),
+                              personality: (formData.personality || '').trim(),
+                              situation: (formData.situation || '').trim(),
+                              instructions: (formData.instructions || '').trim(),
+                              style: formData.style?.trim() || null,
+                              appearance: formData.appearance?.trim() || null,
+                              location: formData.location?.trim() || null,
+                              is_nsfw: currentContentMode === 'nsfw',
+                              tags: formData.tags,
+                              voice_url: selectedVoiceUrl || null
+                            };
+
+                            await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/${createdCharacterData.id}/user-edit`, {
                               method: 'PUT',
                               headers: {
                                 'Content-Type': 'application/json',
                                 'Authorization': `Bearer ${localStorage.getItem('authToken')}`
                               },
-                              body: JSON.stringify({ tags: formData.tags })
+                              body: JSON.stringify(requestData)
                             });
                           } catch (e) {
                             console.error('Failed to save tags', e);
@@ -8964,7 +9066,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         }
                       }}
                     >
-                      Перейти в чат
+                      {t('paidAlbum.nav.toChat')}
                     </ContinueButton>
 
                     {mode === 'create' && (
@@ -8977,16 +9079,29 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                         onClick={async () => {
                           if (!createdCharacterData) return;
 
-                          // Сохраняем теги, если они были изменены
+                          // Сохраняем теги (и остальные данные), если они были изменены
                           if (formData.tags && formData.tags.length > 0) {
                             try {
-                              await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/${createdCharacterData.id}`, {
+                              const requestData = {
+                                name: (formData.name || '').trim(),
+                                personality: (formData.personality || '').trim(),
+                                situation: (formData.situation || '').trim(),
+                                instructions: (formData.instructions || '').trim(),
+                                style: formData.style?.trim() || null,
+                                appearance: formData.appearance?.trim() || null,
+                                location: formData.location?.trim() || null,
+                                is_nsfw: currentContentMode === 'nsfw',
+                                tags: formData.tags,
+                                voice_url: selectedVoiceUrl || null
+                              };
+
+                              await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/${createdCharacterData.id}/user-edit`, {
                                 method: 'PUT',
                                 headers: {
                                   'Content-Type': 'application/json',
                                   'Authorization': `Bearer ${localStorage.getItem('authToken')}`
                                 },
-                                body: JSON.stringify({ tags: formData.tags })
+                                body: JSON.stringify(requestData)
                               });
                             } catch (e) {
                               console.error('Failed to save tags', e);
@@ -9016,7 +9131,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                           }
                         }}
                       >
-                        Создать платный альбом
+                        {t('paidAlbum.nav.createPaidAlbum', 'Создать платный альбом')}
                       </ContinueButton>
                     )}
                   </div>
@@ -9199,7 +9314,7 @@ IMPORTANT: Always end your answers with the correct punctuation (. ! ?). Never l
                           const newVoiceId = `user_voice_${result.voice_id}`;
 
                           // Перезагружаем список голосов
-                          const voicesResponse = await fetch('/api/v1/characters/available-voices', {
+                          const voicesResponse = await fetch(`/api/v1/characters/available-voices?lang=${(localStorage.getItem('i18nextLng') || 'ru').split('-')[0]}`, {
                             headers: {
                               'Authorization': `Bearer ${token}`
                             }

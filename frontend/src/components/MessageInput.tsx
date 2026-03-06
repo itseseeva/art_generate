@@ -1,8 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import styled from 'styled-components';
+import { motion, AnimatePresence } from 'motion/react';
 import { theme } from '../theme';
-import Dock from './Dock';
-import type { DockItemData } from './Dock';
 import { ConfirmModal } from './ConfirmModal';
 import { FiSend } from 'react-icons/fi';
 import {
@@ -12,40 +11,60 @@ import {
   Heart,
   Bot,
   Camera,
-  Mic
+  Mic,
+  Plus,
+  X
 } from 'lucide-react';
 
 import { useIsMobile } from '../hooks/useIsMobile';
 import { useTranslation } from 'react-i18next';
 
 const InputContainer = styled.div<{ $isMobile?: boolean }>`
-  padding: ${props => props.$isMobile ? '0.5rem' : theme.spacing.lg};
-  background: ${props => props.$isMobile ? 'rgba(10, 10, 10, 0.7)' : 'rgba(0, 0, 0, 0.2)'};
-  backdrop-filter: blur(30px);
-  -webkit-backdrop-filter: blur(30px);
-  border-top: ${props => props.$isMobile ? '1px solid rgba(255, 255, 255, 0.1)' : 'none'};
+  padding: ${props => props.$isMobile ? '0.5rem' : '0.5rem 1rem'};
+  background: ${props => props.$isMobile ? 'rgba(10, 10, 10, 0.7)' : 'transparent'};
   display: flex;
   flex-direction: column;
-  box-shadow: none;
   z-index: 10;
   position: relative;
   width: 100%;
   box-sizing: border-box;
+  scrollbar-gutter: stable;
 `;
 
 const InputWrapper = styled.div<{ $isMobile?: boolean }>`
-  display: flex;
+  display: ${props => props.$isMobile ? 'flex' : 'grid'};
+  ${props => !props.$isMobile && `
+    grid-template-columns: minmax(60px, 1fr) minmax(0, 760px) minmax(60px, 1fr);
+  `}
   flex-direction: ${props => props.$isMobile ? 'column' : 'row'};
   gap: ${theme.spacing.md};
-  align-items: ${props => props.$isMobile ? 'stretch' : 'flex-end'};
-  max-width: ${props => props.$isMobile ? '100%' : '100%'};
-  padding: 0 ${props => props.$isMobile ? '0' : theme.spacing.xl}; /* Add horizontal padding on desktop */
+  align-items: center;
   margin: 0 auto;
   width: 100%;
   background: transparent;
   border: none;
   box-shadow: none;
   padding: 0;
+  position: relative;
+  justify-content: ${props => props.$isMobile ? 'stretch' : 'center'};
+`;
+
+const CenteredBar = styled.div<{ $isMobile?: boolean }>`
+  grid-column: 2;
+  display: flex;
+  flex-direction: row;
+  align-items: flex-end;
+  max-width: ${props => props.$isMobile ? '100%' : 'none'};
+  width: 100%;
+  background: ${props => props.$isMobile ? 'transparent' : 'rgba(15, 15, 15, 0.4)'};
+  backdrop-filter: ${props => props.$isMobile ? 'none' : 'blur(35px)'};
+  -webkit-backdrop-filter: ${props => props.$isMobile ? 'none' : 'blur(35px)'};
+  border: ${props => props.$isMobile ? 'none' : '1px solid rgba(255, 255, 255, 0.1)'};
+  border-radius: ${props => props.$isMobile ? '0' : '24px'};
+  padding: ${props => props.$isMobile ? '0' : '5px'};
+  box-shadow: ${props => props.$isMobile ? 'none' : '0 10px 30px rgba(0, 0, 0, 0.4)'};
+  transition: all 0.3s ease;
+  position: relative;
 `;
 
 
@@ -55,24 +74,22 @@ const InputWrapper = styled.div<{ $isMobile?: boolean }>`
 const TextAreaWrapper = styled.div<{ $isMobile?: boolean }>`
   display: flex;
   flex-direction: row;
-  gap: ${theme.spacing.sm};
+  gap: ${props => props.$isMobile ? '4px' : '8px'};
   align-items: flex-end;
   flex: 1;
   width: 100%;
   position: relative;
   z-index: ${props => props.$isMobile ? 2 : 1};
-  background: ${props => props.$isMobile ? 'transparent' : 'rgba(30, 30, 30, 0.4)'};
-  backdrop-filter: blur(30px);
-  -webkit-backdrop-filter: blur(30px);
+  background: ${props => props.$isMobile ? 'transparent' : 'transparent'};
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border-radius: 24px;
-  padding: ${props => props.$isMobile ? '0' : '4px'};
-  border: ${props => props.$isMobile ? 'none' : '1px solid rgba(255, 255, 255, 0.1)'};
+  padding: ${props => props.$isMobile ? '0' : '4px 8px'};
+  border: none;
   transition: all 0.3s ease;
 
   &:focus-within {
-     border-color: rgba(236, 72, 153, 0.5);
-     box-shadow: 0 0 15px rgba(236, 72, 153, 0.1);
-     background: ${props => props.$isMobile ? 'transparent' : 'rgba(40, 40, 40, 0.6)'};
+     /* Свечение на десктопе теперь можно оставить на TextAreaWrapper или перенести на InputWrapper */
   }
 `;
 
@@ -87,12 +104,11 @@ const TextAreaColumn = styled.div`
 
 const TextArea = styled.textarea<{ $isDisabled: boolean; $isMobile?: boolean }>`
   flex: 1;
-  min-height: ${props => props.$isMobile ? '34px' : '54px'}; /* Увеличено до 54px для баланса */
+  min-height: ${props => props.$isMobile ? '34px' : '40px'};
   max-height: ${props => props.$isMobile ? '120px' : '200px'};
-  padding: ${props => props.$isMobile ? '6px 12px' : '14px 20px'};
-  background: transparent; /* Фон теперь на Wrapper */
+  padding: ${props => props.$isMobile ? '6px 8px' : '8px 12px'};
+  background: transparent;
   border: none;
-  border-radius: ${theme.borderRadius.xl};
   color: rgba(240, 240, 240, 1);
   font-size: ${props => props.$isMobile ? '0.9rem' : theme.fontSize.base};
   font-family: inherit;
@@ -102,7 +118,7 @@ const TextArea = styled.textarea<{ $isDisabled: boolean; $isMobile?: boolean }>`
   width: 100%;
   box-sizing: border-box;
   position: relative;
-  z-index: ${props => props.$isMobile ? 2 : 1};
+  z-index: 1;
 
   &:focus {
     outline: none;
@@ -110,11 +126,6 @@ const TextArea = styled.textarea<{ $isDisabled: boolean; $isMobile?: boolean }>`
   
   &::placeholder {
     color: rgba(140, 140, 140, 0.6);
-  }
-  
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.5;
   }
   
   /* Прокрутка */
@@ -132,244 +143,361 @@ const TextArea = styled.textarea<{ $isDisabled: boolean; $isMobile?: boolean }>`
   }
 `;
 
-// Кнопка отправки для Desktop
-const SendButtonDesktop = styled.button<{ $disabled?: boolean }>`
-  width: 48px;
-  height: 48px;
+const AddButton = styled(motion.button) <{ $active: boolean; $isMobile?: boolean }>`
+  width: ${props => props.$isMobile ? '32px' : '36px'};
+  height: ${props => props.$isMobile ? '32px' : '36px'};
   border-radius: 50%;
-  background: ${props => props.$disabled ? '#333' : '#db2777'}; /* Pink-600 */
+  background: ${props => props.$active ? 'rgba(236, 72, 153, 0.2)' : 'rgba(255, 255, 255, 0.05)'};
   border: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: white;
-  cursor: ${props => props.$disabled ? 'not-allowed' : 'pointer'};
-  transition: all 0.2s ease;
-  margin: 2px;
+  color: ${props => props.$active ? '#ec4899' : 'rgba(255, 255, 255, 0.6)'};
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   flex-shrink: 0;
-  box-shadow: ${props => props.$disabled ? 'none' : '0 4px 12px rgba(219, 39, 119, 0.3)'};
+  margin-bottom: ${props => props.$isMobile ? '1px' : '4px'};
+  margin-left: ${props => props.$isMobile ? '4px' : '0'};
+  outline: none;
 
-  &:hover:not(:disabled) {
-    background: #ec4899; /* Pink-500 */
-    transform: scale(1.05);
-    box-shadow: 0 0 15px rgba(236, 72, 153, 0.6);
+  &:focus {
+    outline: none;
   }
 
-  &:active:not(:disabled) {
+  &:hover {
+    background: ${props => props.$active ? 'rgba(236, 72, 153, 0.3)' : 'rgba(255, 255, 255, 0.1)'};
+    color: ${props => props.$active ? '#ec4899' : 'white'};
+    transform: scale(1.05);
+  }
+
+  &:active {
     transform: scale(0.95);
   }
 `;
 
+const AddButtonContainer = styled.div`
+position: relative;
+display: flex;
+align-items: center;
+`;
+
+const ActionMenuPopup = styled(motion.div) <{ $isMobile?: boolean }>`
+position: absolute;
+bottom: calc(100% + 12px);
+left: 0;
+transform-origin: bottom left;
+background: rgba(15, 15, 15, 0.95);
+backdrop-filter: blur(30px);
+-webkit-backdrop-filter: blur(30px);
+border-radius: 18px;
+border: 1px solid rgba(255, 255, 255, 0.1);
+padding: 8px;
+display: flex;
+flex-direction: column;
+gap: 4px;
+box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6);
+z-index: 1000;
+pointer-events: auto;
+min-width: 180px;
+`;
+
+const MenuTextItem = styled(motion.button) <{ $color?: string }>`
+display: flex;
+align-items: center;
+gap: 10px;
+padding: 8px 12px;
+border-radius: 12px;
+background: transparent;
+border: none;
+color: rgba(255, 255, 255, 0.8);
+font-size: 0.9rem;
+font-weight: 500;
+cursor: pointer;
+text-align: left;
+transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+width: 100%;
+
+  &:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: ${props => props.$color || 'white'};
+  padding-left: 16px;
+}
+
+  svg {
+  width: 18px;
+  height: 18px;
+  color: ${props => props.$color || 'inherit'};
+  opacity: 0.8;
+}
+`;
+
+const MenuDivider = styled.div`
+height: 1px;
+background: rgba(255, 255, 255, 0.05);
+margin: 4px 8px;
+`;
+
+const BrevityMenuContainer = styled.div`
+padding: 8px 12px 4px 12px;
+display: flex;
+flex-direction: column;
+gap: 8px;
+`;
+
+const BrevityMenuLabel = styled.div`
+font-size: 0.75rem;
+color: rgba(255, 255, 255, 0.4);
+text-transform: uppercase;
+letter-spacing: 0.05em;
+font-weight: 600;
+`;
+
+// Кнопка отправки для Desktop
+const SendButtonDesktop = styled.button<{ $disabled?: boolean }>`
+width: 38px;
+height: 38px;
+border-radius: 12px;
+display: flex;
+align-items: center;
+justify-content: center;
+cursor: pointer;
+background: ${props =>
+    props.$disabled
+      ? 'rgba(255, 255, 255, 0.03)'
+      : 'linear-gradient(135deg, #ec4899 0%, #be185d 100%)'
+  };
+border: 1px solid ${props => props.$disabled ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.2)'};
+color: ${props => props.$disabled ? 'rgba(255, 255, 255, 0.2)' : 'white'};
+transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+box-shadow: ${props => props.$disabled ? 'none' : '0 4px 12px rgba(236, 72, 153, 0.3)'};
+flex-shrink: 0;
+margin-bottom: 4px;
+
+  &:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(236, 72, 153, 0.4);
+  filter: brightness(1.1);
+}
+
+  &: active: not(: disabled) {
+  transform: translateY(0);
+}
+`;
+
 const MobileActions = styled.div`
-  display: flex !important;
-  flex-direction: row;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 4px;
-  width: 100%;
-  position: relative;
-  z-index: 10;
-  overflow: visible;
-  visibility: visible !important;
-  opacity: 1 !important;
-  min-height: 44px;
-  flex-shrink: 0;
+display: flex!important;
+flex-direction: row;
+justify-content: space-between;
+align-items: center;
+margin-top: 4px;
+width: 100%;
+position: relative;
+z-index: 10;
+overflow: visible;
+visibility: visible!important;
+opacity: 1!important;
+min-height: 44px;
+flex-shrink: 0;
 `;
 
 const MobileButtons = styled.div`
-  display: flex !important;
-  flex-direction: row;
-  gap: 10px;
-  align-items: center;
-  position: relative;
-  z-index: 10;
-  overflow: visible;
-  visibility: visible !important;
-  opacity: 1 !important;
-  min-height: 44px;
-  flex-shrink: 0;
+display: flex!important;
+flex-direction: row;
+gap: 10px;
+align-items: center;
+position: relative;
+z-index: 10;
+overflow: visible;
+visibility: visible!important;
+opacity: 1!important;
+min-height: 44px;
+flex-shrink: 0;
 `;
 
 const MobileIconButton = styled.button<{ $disabled?: boolean }>`
-  background: transparent;
-  border: none;
-  color: ${props => props.$disabled ? 'rgba(150, 150, 150, 0.4)' : 'rgba(240, 240, 240, 0.9)'};
-  display: flex !important;
-  flex-direction: column;
-  align-items: center;
-  justify-content: flex-start;
-  cursor: ${props => props.$disabled ? 'not-allowed' : 'pointer'};
-  padding: 2px 4px;
-  gap: 2px;
-  transition: transform 0.2s;
-  min-width: 44px;
-  height: 44px;
-  flex-shrink: 0;
-  visibility: visible !important;
-  opacity: 1 !important;
-  position: relative;
-  z-index: 2;
+background: transparent;
+border: none;
+color: ${props => props.$disabled ? 'rgba(150, 150, 150, 0.4)' : 'rgba(240, 240, 240, 0.9)'};
+display: flex!important;
+flex-direction: column;
+align-items: center;
+justify-content: flex-start;
+cursor: ${props => props.$disabled ? 'not-allowed' : 'pointer'};
+padding: 2px 4px;
+gap: 2px;
+transition: transform 0.2s;
+min-width: 44px;
+height: 44px;
+flex-shrink: 0;
+visibility: visible!important;
+opacity: 1!important;
+position: relative;
+z-index: 2;
 
   &:active {
-    transform: scale(0.9);
-  }
+  transform: scale(0.9);
+}
 `;
 
 const MobileButtonLabel = styled.span`
-  font-size: 0.65rem;
-  color: inherit;
-  line-height: 1.2;
-  text-align: center;
-  white-space: nowrap;
-  height: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 2px;
+font-size: 0.65rem;
+color: inherit;
+line-height: 1.2;
+text-align: center;
+white-space: nowrap;
+height: 14px;
+display: flex;
+align-items: center;
+justify-content: center;
+margin-bottom: 2px;
 `;
 
 const IconButton = styled.button<{ $disabled?: boolean }>`
-  background: transparent;
-  border: none;
-  color: ${props => props.$disabled ? 'rgba(150, 150, 150, 0.4)' : 'rgba(240, 240, 240, 0.9)'};
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: ${props => props.$disabled ? 'not-allowed' : 'pointer'};
-  padding: 6px;
-  transition: transform 0.2s;
+background: transparent;
+border: none;
+color: ${props => props.$disabled ? 'rgba(150, 150, 150, 0.4)' : 'rgba(240, 240, 240, 0.9)'};
+display: flex;
+align-items: center;
+justify-content: center;
+cursor: ${props => props.$disabled ? 'not-allowed' : 'pointer'};
+padding: 6px;
+transition: transform 0.2s;
 
   &:active {
-    transform: scale(0.9);
-  }
+  transform: scale(0.9);
+}
 `;
 
 const DockAndCountersRow = styled.div`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 1rem;
-  margin-left: 1rem;
-  height: fit-content;
-  align-self: flex-end;
+display: flex;
+flex-direction: row;
+align-items: center;
+gap: 1rem;
+margin-left: 0.5rem;
+height: min-content;
+position: relative;
+flex-shrink: 0;
 `;
 
 const DockWrapper = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 6px 10px;
-  background: rgba(20, 20, 20, 0.4) !important;
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 14px;
-  opacity: 1;
-  height: fit-content;
+display: flex;
+justify-content: center;
+align-items: center;
+padding: 6px 10px;
+background: rgba(20, 20, 20, 0.4)!important;
+backdrop-filter: blur(20px);
+-webkit-backdrop-filter: blur(20px);
+border: 1px solid rgba(255, 255, 255, 0.1);
+border-radius: 14px;
+opacity: 1;
+height: fit-content;
 `;
 
 const ResourceCountersContainer = styled.div`
-  display: flex;
-  gap: 1rem;
-  align-items: center;
-  padding: 0;
-  height: fit-content;
-  background: transparent;
+display: flex;
+gap: 1rem;
+align-items: center;
+padding: 0;
+height: fit-content;
+background: transparent;
 `;
 
 const ResourceCounter = styled.div<{ $color?: string }>`
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: white;
+display: flex;
+align-items: center;
+gap: 0.5rem;
+font-size: 0.95rem;
+font-weight: 600;
+color: white;
 `;
 
 const AnimatedCounterIcon = styled.div<{ $color: string; $glowColor: string }>`
-  display: flex;
-  align-items: center;
-  justify-content: center;
+display: flex;
+align-items: center;
+justify-content: center;
   
   svg {
-    width: 22px;
-    height: 22px;
-    stroke-width: 2.2;
-    color: ${props => props.$color};
-    filter: drop-shadow(0 0 8px ${props => props.$glowColor});
-    animation: counter-icon-pulse 2.5s ease-in-out infinite;
+  width: 22px;
+  height: 22px;
+  stroke-width: 2.2;
+  color: ${props => props.$color};
+  filter: drop-shadow(0 0 8px ${props => props.$glowColor});
+  animation: counter-icon-pulse 2.5s ease -in -out infinite;
+}
+
+@keyframes counter-icon-pulse {
+  0 %, 100% {
+    opacity: 1;
+    transform: scale(1);
   }
-  
-  @keyframes counter-icon-pulse {
-    0%, 100% {
-      opacity: 1;
-      transform: scale(1);
-    }
-    50% {
-      opacity: 0.92;
-      transform: scale(1.08);
-    }
+  50% {
+    opacity: 0.92;
+    transform: scale(1.08);
   }
+}
 `;
 
 const CounterValue = styled.span<{ $warning?: boolean }>`
-  font-family: 'Courier New', monospace;
-  font-size: 1rem;
-  font-weight: 700;
-  color: ${props => props.$warning ? '#fbbf24' : '#a78bfa'};
-  text-shadow: 0 0 8px ${props => props.$warning ? 'rgba(251, 191, 36, 0.4)' : 'rgba(167, 139, 250, 0.4)'};
+font-family: 'Courier New', monospace;
+font-size: 1rem;
+font-weight: 700;
+color: ${props => props.$warning ? '#fbbf24' : '#a78bfa'};
+text-shadow: 0 0 8px ${props => props.$warning ? 'rgba(251, 191, 36, 0.4)' : 'rgba(167, 139, 250, 0.4)'};
 `;
 
 const PremiumIconWrapper = styled.div<{ $disabled?: boolean; $color?: string; $isImage?: boolean }>`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 6px;
-  border-radius: 10px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  cursor: ${props => props.$disabled ? 'not-allowed' : 'pointer'};
-  opacity: ${props => props.$disabled ? 0.5 : 1};
-  pointer-events: ${props => props.$disabled ? 'none' : 'auto'};
+display: flex;
+align-items: center;
+justify-content: center;
+padding: 6px;
+border-radius: 10px;
+transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+cursor: ${props => props.$disabled ? 'not-allowed' : 'pointer'};
+opacity: ${props => props.$disabled ? 0.5 : 1};
+pointer-events: ${props => props.$disabled ? 'none' : 'auto'};
   
   svg {
-    width: 16px;
-    height: 16px;
-    stroke-width: 2.5;
-    color: ${props => {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2.5;
+  color: ${props => {
     if (props.$disabled) return 'rgba(150, 150, 150, 0.4)';
     if (props.$color) return props.$color;
     return 'rgba(240, 240, 240, 0.6)';
-  }};
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  };
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     ${props => props.$isImage && !props.$disabled ? `
       animation: pulse-glow-image 2s ease-in-out infinite;
       filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.9)) drop-shadow(0 0 12px rgba(59, 130, 246, 0.6));
-    ` : ''}
+    ` : ''
+  }
+}
+
+@keyframes pulse-glow-image {
+  0 %, 100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.9)) drop- shadow(0 0 12px rgba(59, 130, 246, 0.6)) drop-shadow(0 0 16px rgba(59, 130, 246, 0.4));
+  transform: scale(1);
+}
+50% {
+  opacity: 1;
+  filter: drop-shadow(0 0 12px rgba(59, 130, 246, 1)) drop- shadow(0 0 18px rgba(59, 130, 246, 0.8)) drop-shadow(0 0 24px rgba(59, 130, 246, 0.6));
+transform: scale(1.05);
+    }
   }
   
-  @keyframes pulse-glow-image {
-    0%, 100% {
-      opacity: 1;
-      filter: drop-shadow(0 0 8px rgba(59, 130, 246, 0.9)) drop-shadow(0 0 12px rgba(59, 130, 246, 0.6)) drop-shadow(0 0 16px rgba(59, 130, 246, 0.4));
-      transform: scale(1);
-    }
-    50% {
-      opacity: 1;
-      filter: drop-shadow(0 0 12px rgba(59, 130, 246, 1)) drop-shadow(0 0 18px rgba(59, 130, 246, 0.8)) drop-shadow(0 0 24px rgba(59, 130, 246, 0.6));
-      transform: scale(1.05);
-    }
-  }
-  
-  &:hover:not([data-disabled="true"]) {
-    transform: scale(1.1);
+  &: hover: not([data-disabled="true"]) {
+  transform: scale(1.1);
     
     svg {
-      color: ${props => {
+    color: ${props => {
     if (props.$disabled) return 'rgba(150, 150, 150, 0.4)';
     if (props.$color) return props.$color;
     return '#8B5CF6';
-  }};
-      filter: ${props => {
+  }
+  };
+    filter: ${props => {
     if (props.$disabled) return 'none';
     if (props.$isImage) {
       return 'drop-shadow(0 0 16px rgba(59, 130, 246, 1)) drop-shadow(0 0 24px rgba(59, 130, 246, 0.8)) drop-shadow(0 0 32px rgba(59, 130, 246, 0.6))';
@@ -381,45 +509,46 @@ const PremiumIconWrapper = styled.div<{ $disabled?: boolean; $color?: string; $i
       return `drop-shadow(0 0 8px rgba(${r}, ${g}, ${b}, 0.5))`;
     }
     return 'drop-shadow(0 0 8px rgba(139, 92, 246, 0.6))';
-  }};
-      ${props => props.$isImage ? 'animation: none;' : ''}
-    }
   }
+  };
+      ${props => props.$isImage ? 'animation: none;' : ''}
+  }
+}
   
   &:active:not([data-disabled="true"]) {
-    transform: scale(0.95);
-  }
+  transform: scale(0.95);
+}
 `;
 
 const AnimatedBotIcon = styled(Bot)`
-  width: 16px;
-  height: 16px;
-  stroke-width: 2.5;
-  color: rgba(59, 130, 246, 0.6);
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+width: 16px;
+height: 16px;
+stroke-width: 2.5;
+color: rgba(59, 130, 246, 0.6);
+transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 `;
 
 const BotIconWrapper = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 6px;
-  border-radius: 10px;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  cursor: pointer;
+display: flex;
+align-items: center;
+justify-content: center;
+padding: 6px;
+border-radius: 10px;
+transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+cursor: pointer;
   
   &:hover {
-    transform: scale(1.1);
+  transform: scale(1.1);
     
     ${AnimatedBotIcon} {
-      color: #3B82F6;
-      transform: scale(1.1);
-    }
+    color: #3B82F6;
+    transform: scale(1.1);
   }
+}
   
   &:active {
-    transform: scale(0.95);
-  }
+  transform: scale(0.95);
+}
 `;
 
 interface MessageInputProps {
@@ -448,145 +577,100 @@ interface MessageInputProps {
 }
 
 const BrevityToggleContainer = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: fit-content;
-  position: relative;
-  cursor: pointer;
-
-  &:hover::after {
-    content: attr(data-tooltip);
-    position: absolute;
-    bottom: calc(100% + 12px);
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(15, 15, 15, 0.95);
-    color: white;
-    padding: 6px 14px;
-    border-radius: 10px;
-    font-size: 0.75rem;
-    font-weight: 600;
-    white-space: nowrap;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-    z-index: 1000;
-    pointer-events: none;
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
-    animation: tooltipFadeIn 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-
-  &:hover::before {
-    content: "";
-    position: absolute;
-    bottom: calc(100% + 6px);
-    left: 50%;
-    transform: translateX(-50%);
-    border-width: 6px 6px 0 6px;
-    border-style: solid;
-    border-color: rgba(15, 15, 15, 0.95) transparent transparent transparent;
-    z-index: 1000;
-    pointer-events: none;
-    animation: tooltipFadeIn 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  }
-
-  @keyframes tooltipFadeIn {
-    from { 
-      opacity: 0; 
-      transform: translate(-50%, 10px) scale(0.95); 
-    }
-    to { 
-      opacity: 1; 
-      transform: translate(-50%, 0) scale(1); 
-    }
-  animation: tooltipFadeIn 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  }
+display: flex;
+align-items: center;
+gap: 8px;
+height: fit-content;
+position: relative;
+cursor: pointer;
 `;
 
 
 const BrevityTopContainer = styled.div`
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-bottom: 8px;
-  width: 100%;
+display: flex;
+justify-content: center;
+align-items: center;
+margin-bottom: 8px;
+width: 100%;
 `;
 
 const BrevityLabel = styled.span<{ $isActive: boolean }>`
-  font-size: ${theme.fontSize.sm};
-  color: ${props => props.$isActive ? 'rgba(255, 255, 255, 0.9)' : 'rgba(180, 180, 180, 0.6)'};
-  font-weight: ${props => props.$isActive ? '600' : '500'};
-  transition: all 0.2s ease;
-  white-space: nowrap;
-  user-select: none;
+font-size: ${theme.fontSize.sm};
+color: ${props => props.$isActive ? 'rgba(255, 255, 255, 0.9)' : 'rgba(180, 180, 180, 0.6)'};
+font-weight: ${props => props.$isActive ? '600' : '500'};
+transition: all 0.2s ease;
+white-space: nowrap;
+user-select: none;
 
-  @media (max-width: 768px) {
-    font-size: 0.75rem;
-  }
+@media(max-width: 768px) {
+  font-size: 0.75rem;
+}
 `;
 
 const ToggleSwitchWrapper = styled.label`
-  position: relative;
-  display: inline-block;
-  width: 48px;
-  height: 24px;
-  cursor: pointer;
-  
-  @media (max-width: 768px) {
-    width: 42px;
-    height: 22px;
-  }
+position: relative;
+display: inline-block;
+width: 48px;
+height: 24px;
+cursor: pointer;
+
+@media(max-width: 768px) {
+  width: 42px;
+  height: 22px;
+}
 `;
 
 const ToggleSwitchInput = styled.input`
-  opacity: 0;
-  width: 0;
-  height: 0;
+opacity: 0;
+width: 0;
+height: 0;
 `;
 
 const ToggleSwitchSlider = styled.span<{ $checked: boolean; $disabled?: boolean }>`
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: ${props => props.$checked
+position: absolute;
+top: 0;
+left: 0;
+right: 0;
+bottom: 0;
+background: ${props => props.$checked
     ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-    : 'rgba(60, 60, 60, 0.8)'};
-  border-radius: 24px;
-  transition: all 0.3s ease;
-  border: 1px solid ${props => props.$checked
+    : 'rgba(60, 60, 60, 0.8)'
+  };
+border-radius: 24px;
+transition: all 0.3s ease;
+border: 1px solid ${props => props.$checked
     ? 'rgba(118, 75, 162, 0.5)'
-    : 'rgba(80, 80, 80, 0.5)'};
-  opacity: ${props => props.$disabled ? 0.5 : 1};
-  cursor: ${props => props.$disabled ? 'not-allowed' : 'pointer'};
+    : 'rgba(80, 80, 80, 0.5)'
+  };
+opacity: ${props => props.$disabled ? 0.5 : 1};
+cursor: ${props => props.$disabled ? 'not-allowed' : 'pointer'};
 
   &:before {
-    content: "";
-    position: absolute;
-    height: 18px;
-    width: 18px;
-    left: 3px;
-    bottom: 2px;
-    background: white;
-    border-radius: 50%;
-    transition: all 0.3s ease;
-    transform: ${props => props.$checked ? 'translateX(24px)' : 'translateX(0)'};
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  content: "";
+  position: absolute;
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 2px;
+  background: white;
+  border-radius: 50%;
+  transition: all 0.3s ease;
+  transform: ${props => props.$checked ? 'translateX(24px)' : 'translateX(0)'};
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 
-    @media (max-width: 768px) {
-      height: 16px;
-      width: 16px;
-      transform: ${props => props.$checked ? 'translateX(20px)' : 'translateX(0)'};
-    }
+  @media(max-width: 768px) {
+    height: 16px;
+    width: 16px;
+    transform: ${props => props.$checked ? 'translateX(20px)' : 'translateX(0)'};
   }
+}
 
   &:hover {
-    background: ${props => props.$checked
+  background: ${props => props.$checked
     ? 'linear-gradient(135deg, #7c8ef0 0%, #8b5fc4 100%)'
-    : 'rgba(70, 70, 70, 0.9)'};
-  }
+    : 'rgba(70, 70, 70, 0.9)'
+  };
+}
 `;
 
 export const MessageInput: React.FC<MessageInputProps> = ({
@@ -616,6 +700,30 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   const isMobile = useIsMobile();
   const [message, setMessage] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const addButtonRef = useRef<HTMLButtonElement>(null);
+  const [isExtraMenuOpen, setIsExtraMenuOpen] = useState(false);
+
+  // Close menu on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      // Закрываем, если клик вне меню И вне кнопки открытия (addButtonRef)
+      if (
+        menuRef.current &&
+        !menuRef.current.contains(event.target as Node) &&
+        addButtonRef.current &&
+        !addButtonRef.current.contains(event.target as Node)
+      ) {
+        setIsExtraMenuOpen(false);
+      }
+    };
+    if (isExtraMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isExtraMenuOpen]);
 
   // Use imagesRemaining if available, otherwise fallback to photosRemaining = imagesRemaining !== undefined ? imagesRemaining : photosRemaining;
 
@@ -625,7 +733,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+      textareaRef.current.style.height = `${textareaRef.current.scrollHeight} px`;
     }
   }, [message, isMobile]);
 
@@ -670,75 +778,6 @@ export const MessageInput: React.FC<MessageInputProps> = ({
     }
   };
 
-  const dockItems: DockItemData[] = [
-    {
-      icon: (
-        <PremiumIconWrapper
-          $disabled={disableImageGeneration || !onGenerateImage}
-          $isImage={true}
-          data-disabled={disableImageGeneration || !onGenerateImage}
-        >
-          <Camera strokeWidth={2.5} />
-        </PremiumIconWrapper>
-      ),
-      label: t('chat.generatePhotoButton'),
-      onClick: handleImageGeneration,
-      className: disableImageGeneration || !onGenerateImage ? 'disabled' : ''
-    },
-    ...(onShowHelp ? [{
-      icon: (
-        <PremiumIconWrapper
-          $disabled={disabled}
-          data-disabled={disabled}
-        >
-          <HelpCircle strokeWidth={2.5} />
-        </PremiumIconWrapper>
-      ),
-      label: t('chat.help'),
-      onClick: handleShowHelp,
-      className: disabled ? 'disabled' : ''
-    }] : []),
-    ...(onClearChat && hasMessages ? [{
-      icon: (
-        <PremiumIconWrapper>
-          <Trash2 strokeWidth={2.5} />
-        </PremiumIconWrapper>
-      ),
-      label: t('chat.clearHistory'),
-      onClick: handleClear,
-      className: ''
-    }] : []),
-    ...(onTipCreator ? [{
-      icon: (
-        <PremiumIconWrapper $color="#ec4899">
-          <Heart strokeWidth={2.5} />
-        </PremiumIconWrapper>
-      ),
-      label: t('chat.thankCreator'),
-      onClick: onTipCreator,
-      className: ''
-    }] : []),
-    ...(onShowComments ? [{
-      icon: (
-        <PremiumIconWrapper>
-          <MessageSquare strokeWidth={2.5} />
-        </PremiumIconWrapper>
-      ),
-      label: t('chat.comments'),
-      onClick: onShowComments,
-      className: ''
-    }] : []),
-    ...(onSelectModel ? [{
-      icon: (
-        <BotIconWrapper>
-          <AnimatedBotIcon strokeWidth={2.5} />
-        </BotIconWrapper>
-      ),
-      label: t('chat.selectModel'),
-      onClick: onSelectModel,
-      className: ''
-    }] : [])
-  ];
 
   return (
     <InputContainer $isMobile={isMobile}>
@@ -747,87 +786,199 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
 
         <InputWrapper $isMobile={isMobile}>
+          <CenteredBar $isMobile={isMobile}>
+            <TextAreaColumn>
+              <TextAreaWrapper $isMobile={isMobile}>
+                <AddButtonContainer>
+                  <AddButton
+                    ref={addButtonRef}
+                    type="button"
+                    $active={isExtraMenuOpen}
+                    $isMobile={isMobile}
+                    onClick={() => setIsExtraMenuOpen(!isExtraMenuOpen)}
+                    whileTap={{ scale: 0.9 }}
+                    title={t('chat.moreActions')}
+                  >
+                    <AnimatePresence mode="wait">
+                      {isExtraMenuOpen ? (
+                        <motion.div
+                          key="close"
+                          initial={{ opacity: 0, rotate: -90 }}
+                          animate={{ opacity: 1, rotate: 0 }}
+                          exit={{ opacity: 0, rotate: 90 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          <X size={isMobile ? 18 : 20} strokeWidth={2.5} />
+                        </motion.div>
+                      ) : (
+                        <motion.div
+                          key="plus"
+                          initial={{ opacity: 0, scale: 0.5 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.5 }}
+                          transition={{ duration: 0.2 }}
+                        >
+                          <Plus size={isMobile ? 18 : 20} strokeWidth={2.5} />
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </AddButton>
 
+                  <AnimatePresence>
+                    {isExtraMenuOpen && (
+                      <ActionMenuPopup
+                        ref={menuRef}
+                        $isMobile={isMobile}
+                        initial={{ opacity: 0, y: 15, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.98 }}
+                        transition={{ duration: 0.25, ease: "easeOut" }}
+                      >
+                        <BrevityMenuContainer>
+                          <BrevityMenuLabel>{t('brevity.mode')}</BrevityMenuLabel>
+                          <BrevityToggleContainer>
+                            <BrevityLabel $isActive={brevityMode === 'brief'}>
+                              {t('brevity.brief')}
+                            </BrevityLabel>
+                            <ToggleSwitchWrapper>
+                              <ToggleSwitchInput
+                                type="checkbox"
+                                checked={brevityMode === 'normal'}
+                                onChange={(e) => {
+                                  e.preventDefault();
+                                  onBrevityModeChange && onBrevityModeChange(e.target.checked ? 'normal' : 'brief');
+                                }}
+                                disabled={disabled}
+                              />
+                              <ToggleSwitchSlider
+                                $checked={brevityMode === 'normal'}
+                                $disabled={disabled}
+                              />
+                            </ToggleSwitchWrapper>
+                            <BrevityLabel $isActive={brevityMode === 'normal'}>
+                              {t('brevity.detailed')}
+                            </BrevityLabel>
+                          </BrevityToggleContainer>
+                        </BrevityMenuContainer>
 
-          <TextAreaColumn>
-            {!isMobile && (
-              <BrevityTopContainer>
-                <BrevityToggleContainer data-tooltip={t('brevity.tooltip')}>
-                  <BrevityLabel $isActive={brevityMode === 'brief'}>
-                    {t('brevity.brief')}
-                  </BrevityLabel>
-                  <ToggleSwitchWrapper>
-                    <ToggleSwitchInput
-                      type="checkbox"
-                      checked={brevityMode === 'normal'}
-                      onChange={(e) => {
-                        e.preventDefault();
-                        onBrevityModeChange && onBrevityModeChange(e.target.checked ? 'normal' : 'brief');
-                      }}
-                      disabled={disabled}
-                    />
-                    <ToggleSwitchSlider
-                      $checked={brevityMode === 'normal'}
-                      $disabled={disabled}
-                    />
-                  </ToggleSwitchWrapper>
-                  <BrevityLabel $isActive={brevityMode === 'normal'}>
-                    {t('brevity.detailed')}
-                  </BrevityLabel>
-                </BrevityToggleContainer>
-              </BrevityTopContainer>
-            )}
-            <TextAreaWrapper $isMobile={isMobile}>
-              <TextArea
-                ref={textareaRef}
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={placeholder || (disabled ? t('chat.chatDisabled') : t('chat.writeMessage'))}
-                disabled={disabled}
-                $isDisabled={disabled}
-                $isMobile={isMobile}
-                rows={1}
-              />
-              {!isMobile && (
-                <SendButtonDesktop
-                  type="button"
-                  onClick={handleSend}
-                  disabled={disabled || !message.trim()}
-                  $disabled={disabled || !message.trim()}
-                  title={t('chat.sendEnter')}
-                >
-                  <FiSend size={20} />
-                </SendButtonDesktop>
-              )}
-              {isMobile && (
-                <IconButton
-                  type="button"
-                  onClick={handleSend}
-                  disabled={disabled || !message.trim()}
-                  style={{
-                    color: !message.trim() ? 'rgba(150, 150, 150, 0.4)' : (theme.colors.accent?.primary || '#764ba2'),
-                    padding: '4px 8px'
-                  }}
-                >
-                  <FiSend size={22} />
-                </IconButton>
-              )}
-            </TextAreaWrapper>
-          </TextAreaColumn>
+                        <MenuDivider />
+
+                        {onGenerateImage && (
+                          <MenuTextItem
+                            $color="#3b82f6"
+                            onClick={() => {
+                              handleImageGeneration();
+                              setIsExtraMenuOpen(false);
+                            }}
+                          >
+                            <Camera />
+                            {t('chat.generatePhotoButton')}
+                          </MenuTextItem>
+                        )}
+                        {onSelectModel && (
+                          <MenuTextItem
+                            $color="#8b5cf6"
+                            onClick={() => {
+                              onSelectModel();
+                              setIsExtraMenuOpen(false);
+                            }}
+                          >
+                            <Bot />
+                            {t('chat.selectModel')}
+                          </MenuTextItem>
+                        )}
+                        {onShowHelp && (
+                          <MenuTextItem
+                            onClick={() => {
+                              handleShowHelp();
+                              setIsExtraMenuOpen(false);
+                            }}
+                          >
+                            <HelpCircle />
+                            {t('chat.help')}
+                          </MenuTextItem>
+                        )}
+                        {onTipCreator && (
+                          <MenuTextItem
+                            $color="#ec4899"
+                            onClick={() => {
+                              onTipCreator();
+                              setIsExtraMenuOpen(false);
+                            }}
+                          >
+                            <Heart />
+                            {t('chat.thankCreator')}
+                          </MenuTextItem>
+                        )}
+                        {onShowComments && (
+                          <MenuTextItem
+                            onClick={() => {
+                              onShowComments();
+                              setIsExtraMenuOpen(false);
+                            }}
+                          >
+                            <MessageSquare />
+                            {t('chat.comments') || t('common.chat')}
+                          </MenuTextItem>
+                        )}
+                        {onClearChat && hasMessages && (
+                          <MenuTextItem
+                            $color="#ef4444"
+                            onClick={() => {
+                              handleClear();
+                              setIsExtraMenuOpen(false);
+                            }}
+                          >
+                            <Trash2 />
+                            {t('chat.clearHistory')}
+                          </MenuTextItem>
+                        )}
+                      </ActionMenuPopup>
+                    )}
+                  </AnimatePresence>
+                </AddButtonContainer>
+
+                <TextArea
+                  ref={textareaRef}
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder={placeholder || (disabled ? t('chat.chatDisabled') : t('chat.writeMessage'))}
+                  disabled={disabled}
+                  $isDisabled={disabled}
+                  $isMobile={isMobile}
+                  rows={1}
+                />
+                {!isMobile && (
+                  <SendButtonDesktop
+                    type="button"
+                    onClick={handleSend}
+                    disabled={disabled || !message.trim()}
+                    $disabled={disabled || !message.trim()}
+                    title={t('chat.sendEnter')}
+                  >
+                    <FiSend size={18} />
+                  </SendButtonDesktop>
+                )}
+                {isMobile && (
+                  <IconButton
+                    type="button"
+                    onClick={handleSend}
+                    disabled={disabled || !message.trim()}
+                    style={{
+                      color: !message.trim() ? 'rgba(150, 150, 150, 0.4)' : (theme.colors.accent?.primary || '#764ba2'),
+                      padding: '4px 8px'
+                    }}
+                  >
+                    <FiSend size={18} />
+                  </IconButton>
+                )}
+              </TextAreaWrapper>
+            </TextAreaColumn>
+          </CenteredBar>
 
           {!isMobile && (
             <DockAndCountersRow>
-              <DockWrapper>
-                <Dock
-                  items={dockItems}
-                  panelHeight={48}
-                  baseItemSize={36}
-                  magnification={50}
-                  distance={140}
-                />
-              </DockWrapper>
-
               <ResourceCountersContainer>
                 {subscriptionType === 'free' && (
                   <ResourceCounter>
@@ -858,51 +1009,8 @@ export const MessageInput: React.FC<MessageInputProps> = ({
 
         {isMobile && (
           <MobileActions>
-
-
-            <MobileButtons>
-              {onSelectModel && (
-                <MobileIconButton type="button" onClick={onSelectModel} title={t('chat.selectModel')}>
-                  <Bot size={20} color="rgba(59, 130, 246, 0.9)" strokeWidth={2.5} />
-                  <MobileButtonLabel>{t('chat.selectModel')}</MobileButtonLabel>
-                </MobileIconButton>
-              )}
-              {onGenerateImage && (
-                <MobileIconButton
-                  type="button"
-                  onClick={handleImageGeneration}
-                  disabled={disableImageGeneration}
-                  title={t('chat.generatePhotoButton')}
-                >
-                  <Camera size={22} strokeWidth={2.5} />
-                  <MobileButtonLabel>{t('common.photo')}</MobileButtonLabel>
-                </MobileIconButton>
-              )}
-              {onShowHelp && (
-                <MobileIconButton type="button" onClick={handleShowHelp} title={t('chat.help')}>
-                  <HelpCircle size={24} strokeWidth={2.5} />
-                  <MobileButtonLabel>{t('chat.help')}</MobileButtonLabel>
-                </MobileIconButton>
-              )}
-              {onTipCreator && (
-                <MobileIconButton type="button" onClick={onTipCreator} title={t('chat.thankCreator')}>
-                  <Heart size={20} color="#ec4899" strokeWidth={2.5} />
-                  <MobileButtonLabel>{t('common.donate')}</MobileButtonLabel>
-                </MobileIconButton>
-              )}
-              {onShowComments && (
-                <MobileIconButton type="button" onClick={onShowComments} title={t('chat.comments')}>
-                  <MessageSquare size={20} strokeWidth={2.5} />
-                  <MobileButtonLabel>{t('common.chat')}</MobileButtonLabel>
-                </MobileIconButton>
-              )}
-              {onClearChat && hasMessages && (
-                <MobileIconButton type="button" onClick={handleClear} title={t('chat.clearChat')}>
-                  <Trash2 size={20} strokeWidth={2.5} />
-                  <MobileButtonLabel>{t('chat.clearChat')}</MobileButtonLabel>
-                </MobileIconButton>
-              )}
-            </MobileButtons>
+            {/* Mobile actions are now partially handled by the "+" menu inside the input for consistency */}
+            {/* Keeping the counter or other potentially important mobile-only info if needed, but the user asked to remove the old container */}
           </MobileActions>
         )}
       </form>

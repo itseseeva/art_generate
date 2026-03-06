@@ -388,8 +388,18 @@ export const ShopModal: React.FC<ShopModalProps> = ({
                 <ActivateButton
                   onClick={() => handleActivateCrypto('basic')}
                   disabled={isLoading}
-                  style={{ background: '#1e293b', border: '1px solid #334155', color: '#fff' }}
+                  style={{
+                    background: 'linear-gradient(to right, #030712, #0f172a, #030712)',
+                    border: '1px solid rgba(99, 102, 241, 0.3)',
+                    color: '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    boxShadow: '0 0 15px rgba(99, 102, 241, 0.1)'
+                  }}
                 >
+                  <img src="/i-removebg-preview.png" alt="Crypto" style={{ width: '16px', height: '16px', objectFit: 'contain' }} />
                   Crypto
                 </ActivateButton>
               </div>
@@ -415,8 +425,18 @@ export const ShopModal: React.FC<ShopModalProps> = ({
                 <ActivateButton
                   onClick={() => handleActivateCrypto('premium')}
                   disabled={isLoading}
-                  style={{ background: '#1e293b', border: '1px solid #334155', color: '#fff' }}
+                  style={{
+                    background: 'linear-gradient(to right, #030712, #0f172a, #030712)',
+                    border: '1px solid rgba(99, 102, 241, 0.3)',
+                    color: '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    boxShadow: '0 0 15px rgba(99, 102, 241, 0.1)'
+                  }}
                 >
+                  <img src="/i-removebg-preview.png" alt="Crypto" style={{ width: '16px', height: '16px', objectFit: 'contain' }} />
                   Crypto
                 </ActivateButton>
               </div>
@@ -442,8 +462,18 @@ export const ShopModal: React.FC<ShopModalProps> = ({
                 <ActivateButton
                   onClick={() => handleActivateCrypto('vip')}
                   disabled={isLoading}
-                  style={{ background: '#1e293b', border: '1px solid #334155', color: '#fff' }}
+                  style={{
+                    background: 'linear-gradient(to right, #030712, #0f172a, #030712)',
+                    border: '1px solid rgba(99, 102, 241, 0.3)',
+                    color: '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    boxShadow: '0 0 15px rgba(99, 102, 241, 0.1)'
+                  }}
                 >
+                  <img src="/i.webp" alt="Crypto" style={{ width: '16px', height: '16px', objectFit: 'contain' }} />
                   Crypto
                 </ActivateButton>
               </div>

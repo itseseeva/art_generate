@@ -3,25 +3,25 @@ import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 import { useTranslation } from 'react-i18next';
 import { FiAlertTriangle, FiLock, FiArrowLeft, FiLogIn } from 'react-icons/fi';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, Variants } from 'motion/react';
 
 // Animation Variants
-const overlayVariants = {
+const overlayVariants: Variants = {
   hidden: { opacity: 0, backdropFilter: "blur(0px)" },
   visible: {
     opacity: 1,
-    backdropFilter: "blur(20px)",
-    transition: { duration: 0.4, ease: "easeOut" }
+    backdropFilter: "blur(35px)",
+    transition: { duration: 0.5, ease: "easeOut" as const }
   },
   exit: { opacity: 0, backdropFilter: "blur(0px)", transition: { duration: 0.3 } }
 };
 
-const modalVariants = {
+const modalVariants: Variants = {
   hidden: {
     opacity: 0,
-    scale: 0.9,
-    y: 20,
-    rotateX: 10
+    scale: 0.92,
+    y: 30,
+    rotateX: 15
   },
   visible: {
     opacity: 1,
@@ -29,54 +29,58 @@ const modalVariants = {
     y: 0,
     rotateX: 0,
     transition: {
-      type: "spring",
-      damping: 25,
-      stiffness: 300,
-      duration: 0.5,
-      delayChildren: 0.2,
-      staggerChildren: 0.1
+      type: "spring" as const,
+      damping: 22,
+      stiffness: 280,
+      duration: 0.6,
+      delayChildren: 0.1,
+      staggerChildren: 0.08
     }
   },
   exit: {
     opacity: 0,
-    scale: 0.9,
+    scale: 0.95,
     y: 20,
-    transition: { duration: 0.3 }
+    transition: { duration: 0.3, ease: "easeIn" as const }
   }
 };
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 10 },
+const itemVariants: Variants = {
+  hidden: { opacity: 0, y: 15 },
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.4, ease: "easeOut" }
+    transition: { duration: 0.5, ease: "easeOut" as const }
   }
 };
 
-const iconVariants = {
-  hidden: { scale: 0, rotate: -45, opacity: 0 },
+const badgeVariants: Variants = {
+  hidden: { scale: 0, opacity: 0, rotate: -180 },
   visible: {
     scale: 1,
-    rotate: 0,
     opacity: 1,
+    rotate: 0,
     transition: {
-      type: "spring",
-      stiffness: 200,
-      damping: 15
+      type: "spring" as const,
+      stiffness: 260,
+      damping: 20
     }
   },
   pulse: {
-    scale: [1, 1.05, 1],
     boxShadow: [
-      "0 0 30px rgba(239, 68, 68, 0.2)",
-      "0 0 50px rgba(239, 68, 68, 0.5)",
-      "0 0 30px rgba(239, 68, 68, 0.2)"
+      "0 0 20px rgba(239, 68, 68, 0.3)",
+      "0 0 40px rgba(239, 68, 68, 0.6)",
+      "0 0 20px rgba(239, 68, 68, 0.3)"
+    ],
+    textShadow: [
+      "0 0 10px rgba(239, 68, 68, 0.5)",
+      "0 0 20px rgba(239, 68, 68, 0.8)",
+      "0 0 10px rgba(239, 68, 68, 0.5)"
     ],
     transition: {
-      duration: 2,
+      duration: 2.5,
       repeat: Infinity,
-      ease: "easeInOut"
+      ease: "easeInOut" as const
     }
   }
 };
@@ -87,29 +91,30 @@ const ModalOverlay = styled(motion.div)`
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(5, 5, 10, 0.7);
+  background: rgba(3, 3, 5, 0.85);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 10000;
-  perspective: 1000px;
+  perspective: 1200px;
 `;
 
 const ModalContent = styled(motion.div)`
-  background: linear-gradient(165deg, rgba(20, 20, 25, 0.95) 0%, rgba(10, 10, 12, 0.98) 100%);
-  border-radius: 32px;
-  padding: 48px;
+  background: rgba(10, 10, 15, 0.75);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border-radius: 40px;
+  padding: 56px 48px;
   box-shadow: 
-    0 0 0 1px rgba(255, 255, 255, 0.05),
-    0 40px 80px rgba(0, 0, 0, 0.7),
-    0 0 100px rgba(239, 68, 68, 0.1);
-  max-width: 500px;
+    0 0 0 1px rgba(255, 255, 255, 0.08),
+    0 40px 100px rgba(0, 0, 0, 0.8),
+    0 0 80px rgba(239, 68, 68, 0.15);
+  max-width: 520px;
   width: 90vw;
   text-align: center;
   position: relative;
   overflow: hidden;
 
-  /* Premium glowing border on top */
   &::before {
     content: '';
     position: absolute;
@@ -117,78 +122,98 @@ const ModalContent = styled(motion.div)`
     left: 0;
     right: 0;
     height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(239, 68, 68, 0.6), transparent);
+    background: linear-gradient(90deg, 
+      transparent 0%, 
+      rgba(239, 68, 68, 0.4) 20%, 
+      rgba(239, 68, 68, 0.8) 50%, 
+      rgba(239, 68, 68, 0.4) 80%, 
+      transparent 100%
+    );
   }
   
-  /* Subtle red glow at bottom */
   &::after {
     content: '';
     position: absolute;
-    bottom: -50px;
+    bottom: -60px;
     left: 50%;
     transform: translateX(-50%);
-    width: 200px;
-    height: 100px;
-    background: rgba(239, 68, 68, 0.15);
-    filter: blur(50px);
+    width: 300px;
+    height: 120px;
+    background: radial-gradient(circle, rgba(239, 68, 68, 0.2) 0%, transparent 70%);
+    filter: blur(40px);
     pointer-events: none;
     z-index: 0;
   }
 `;
 
-const WarningIconWrapper = styled(motion.div)`
-  width: 88px;
-  height: 88px;
-  margin: 0 auto 32px;
-  background: rgba(239, 68, 68, 0.1);
-  border-radius: 50%;
+const NSFWBadge = styled(motion.div)`
+  width: 100px;
+  height: 100px;
+  margin: 0 auto 36px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 2px solid rgba(239, 68, 68, 0.4);
+  border-radius: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: #ef4444;
+  font-size: 32px;
+  font-weight: 900;
+  font-family: 'Inter', sans-serif;
+  letter-spacing: -1px;
   position: relative;
-  border: 1px solid rgba(239, 68, 68, 0.2);
+  transform: rotate(-5deg);
   
-  svg {
-    width: 44px;
-    height: 44px;
-    stroke-width: 2;
-    filter: drop-shadow(0 0 5px rgba(239, 68, 68, 0.4));
+  &::after {
+    content: 'NSFW';
+    position: absolute;
+    bottom: -10px;
+    right: -10px;
+    font-size: 10px;
+    background: #ef4444;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 6px;
+    letter-spacing: 1px;
   }
 `;
 
 const Title = styled(motion.h2)`
   color: white;
-  font-size: 28px;
-  font-weight: 800;
-  margin-bottom: 20px;
-  letter-spacing: -0.02em;
-  background: linear-gradient(135deg, #fff 30%, #fca5a5 100%);
+  font-size: 32px;
+  font-weight: 900;
+  margin-bottom: 24px;
+  letter-spacing: -1px;
+  background: linear-gradient(135deg, #ffffff 0%, #fecaca 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  text-shadow: 0 2px 10px rgba(239, 68, 68, 0.2);
+  filter: drop-shadow(0 0 15px rgba(239, 68, 68, 0.3));
 `;
 
-const Message = styled(motion.div)`
-  color: #a1a1aa;
-  font-size: 16px;
-  line-height: 1.7;
-  margin-bottom: 40px;
-  position: relative;
+const MessageBody = styled(motion.div)`
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 17px;
+  line-height: 1.6;
+  margin-bottom: 44px;
   z-index: 1;
   
+  p {
+    margin-bottom: 16px;
+  }
+
   strong {
-    color: #fca5a5;
-    font-weight: 600;
+    color: #ef4444;
+    font-weight: 800;
+    text-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
   }
 `;
 
-const AgeVerificationBox = styled(motion.div)`
-  margin-top: 28px;
-  padding: 18px;
-  background: rgba(239, 68, 68, 0.08);
-  border: 1px solid rgba(239, 68, 68, 0.15);
-  border-radius: 16px;
+const VerificationContainer = styled(motion.div)`
+  margin-top: 32px;
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 24px;
   position: relative;
   overflow: hidden;
 
@@ -196,122 +221,95 @@ const AgeVerificationBox = styled(motion.div)`
     content: '';
     position: absolute;
     top: 0;
-    left: -100%;
-    width: 100%;
+    left: 0;
+    width: 2px;
     height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.05), transparent);
-    animation: shine 3s infinite linear;
-  }
-
-  @keyframes shine {
-    0% { left: -100%; }
-    50% { left: 100%; }
-    100% { left: 100%; }
+    background: #ef4444;
+    box-shadow: 0 0 10px #ef4444;
   }
 
   p {
     margin: 0;
-    font-size: 14px;
-    color: #f87171;
-    font-weight: 600;
+    font-size: 15px;
+    color: rgba(255, 255, 255, 0.9);
+    font-weight: 700;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-  }
-`;
-
-const ButtonGroup = styled(motion.div)`
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  position: relative;
-  z-index: 1;
-  
-  @media (max-width: 480px) {
-    grid-template-columns: 1fr;
     gap: 12px;
   }
 `;
 
-const Button = styled(motion.button) <{ $variant?: 'primary' | 'secondary' }>`
+const ActionRow = styled(motion.div)`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-top: 12px;
+  
+  @media (max-width: 480px) {
+    grid-template-columns: 1fr;
+  }
+`;
+
+const PremiumButton = styled(motion.button) <{ $primary?: boolean }>`
   position: relative;
   width: 100%;
-  padding: 18px 24px;
-  border-radius: 20px;
-  font-weight: 700;
+  padding: 20px;
+  border-radius: 22px;
+  font-weight: 800;
   font-size: 16px;
-  line-height: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 12px;
   cursor: pointer;
-  outline: none;
+  border: none;
   font-family: inherit;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
   overflow: hidden;
   
-  ${props => props.$variant === 'primary' ? `
-    /* Primary Button: Gradient, Inner Glow, Shine effect */
-    background: linear-gradient(135deg, #DC2626 0%, #991B1B 100%);
+  ${props => props.$primary ? `
+    background: linear-gradient(135deg, #ef4444 0%, #991b1b 100%);
     color: white;
-    border: none;
-    box-shadow: 
-      0 4px 20px rgba(220, 38, 38, 0.3),
-      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+    box-shadow: 0 10px 25px rgba(239, 68, 68, 0.4);
     
-    /* Animated shine/glow overlay */
-    &::before {
+    &::after {
       content: '';
       position: absolute;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.2), transparent);
-      transform: translateX(-100%) skewX(-15deg);
-      transition: transform 0.6s ease;
+      top: -50%;
+      left: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(255,255,255,0.2) 0%, transparent 60%);
+      opacity: 0;
+      transition: opacity 0.3s;
     }
 
     &:hover {
-      box-shadow: 
-        0 8px 30px rgba(220, 38, 38, 0.5),
-        inset 0 1px 0 rgba(255, 255, 255, 0.3);
-      transform: translateY(-2px);
-      background: linear-gradient(135deg, #EF4444 0%, #B91C1C 100%);
-
-      /* Shine effect on hover */
-      &::before {
-        transform: translateX(100%) skewX(-15deg);
-        transition: transform 0.6s ease;
+      box-shadow: 0 15px 35px rgba(239, 68, 68, 0.6);
+      transform: translateY(-3px) scale(1.02);
+      
+      &::after {
+        opacity: 1;
       }
     }
-
-    &:active {
-      transform: translateY(0);
-      box-shadow: 0 4px 15px rgba(220, 38, 38, 0.3);
-    }
   ` : `
-    /* Secondary Button: Glassmorphism */
-    background: rgba(255, 255, 255, 0.03);
-    color: #a1a1aa;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(10px);
     
     &:hover {
-      background: rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.1);
       border-color: rgba(255, 255, 255, 0.2);
       color: white;
-      transform: translateY(-2px);
-      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-    }
-
-    &:active {
-      transform: translateY(0);
-      background: rgba(255, 255, 255, 0.05);
+      transform: translateY(-3px);
     }
   `}
+
+  &:active {
+    transform: translateY(-1px) scale(0.98);
+  }
 `;
 
 interface NSFWWarningModalProps {
@@ -334,53 +332,48 @@ export const NSFWWarningModal: React.FC<NSFWWarningModalProps> = ({ onConfirm, o
           variants={modalVariants}
           onClick={(e) => e.stopPropagation()}
         >
-          <WarningIconWrapper
-            variants={iconVariants}
+          <NSFWBadge
+            variants={badgeVariants}
             animate="pulse"
           >
-            <FiAlertTriangle />
-          </WarningIconWrapper>
+            18+
+          </NSFWBadge>
 
           <Title variants={itemVariants}>
             {t('nsfwWarning.title')}
           </Title>
 
-          <Message variants={itemVariants}>
+          <MessageBody variants={itemVariants}>
             <p>
               {t('nsfwWarning.message')} <strong>{t('nsfwWarning.explicitContent')}</strong>.
             </p>
-            <p style={{ marginTop: '12px' }}>
+            <p style={{ opacity: 0.8, fontSize: '15px' }}>
               {t('nsfwWarning.description')}
             </p>
 
-            <AgeVerificationBox>
+            <VerificationContainer>
               <p>
-                <FiLock size={16} />
+                <FiLock size={18} color="#ef4444" />
                 {t('nsfwWarning.ageVerification')}
               </p>
-            </AgeVerificationBox>
-          </Message>
+            </VerificationContainer>
+          </MessageBody>
 
-          <ButtonGroup variants={itemVariants}>
-            <Button
-              $variant="secondary"
+          <ActionRow variants={itemVariants}>
+            <PremiumButton
               onClick={onCancel}
-              whileHover="hover"
-              whileTap="tap"
             >
-              <FiArrowLeft size={18} />
+              <FiArrowLeft size={20} />
               <span>{t('common.return')}</span>
-            </Button>
-            <Button
-              $variant="primary"
+            </PremiumButton>
+            <PremiumButton
+              $primary
               onClick={onConfirm}
-              whileHover="hover"
-              whileTap="tap"
             >
               <span>{t('nsfwWarning.enter')}</span>
-              <FiLogIn size={18} />
-            </Button>
-          </ButtonGroup>
+              <FiLogIn size={20} />
+            </PremiumButton>
+          </ActionRow>
         </ModalContent>
       </ModalOverlay>
     </AnimatePresence>,

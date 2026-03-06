@@ -10,7 +10,7 @@ import { authManager } from '../utils/auth';
 const isPremiumVoice = (voiceName?: string): boolean => {
   if (!voiceName) return false;
   const name = voiceName.toLowerCase();
-  return name.includes('мита') || name.includes('meet') || name === 'мика' || name === 'ника';
+  return name.includes('мита') || name.includes('meet') || name === 'мика' || name === 'ника' || name.includes('eleanor');
 };
 
 // Для оформления: Ника — без красной обводки, зелёная галочка; права только для премиум сохраняются
@@ -18,7 +18,7 @@ const isPremiumVoiceForStyle = (voiceName?: string): boolean => {
   if (!voiceName) return false;
   const name = voiceName.toLowerCase();
   if (name === 'ника') return false;
-  return name.includes('мита') || name.includes('meet') || name === 'мика';
+  return name.includes('мита') || name.includes('meet') || name === 'мика' || name.includes('eleanor');
 };
 
 // Список голосов у которых есть дефолтное фото
@@ -35,6 +35,8 @@ const DEFAULT_VOICE_PHOTOS: Record<string, string> = {
   'nastya': '/default_voice_photo/Настя.png',
   'даша': '/default_voice_photo/Даша.png',
   'dasha': '/default_voice_photo/Даша.png',
+  'eleanor': '/default_voice_photo/Eleanor.png',
+  'eva': '/default_voice_photo/EVA.png',
 };
 
 // Функция для получения пути к фото дефолтного голоса
@@ -722,7 +724,7 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
   userInfo,
   onShop
 }) => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [availableVoices, setAvailableVoices] = useState<Voice[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'default' | 'user'>('default');
@@ -752,7 +754,8 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
         headers['Authorization'] = `Bearer ${token}`;
       }
 
-      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/available-voices`, { headers });
+      const lang = i18n.language?.split('-')[0] || 'ru';
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/characters/available-voices?lang=${lang}`, { headers });
       if (response.ok) {
         const data = await response.json();
         setAvailableVoices(data);

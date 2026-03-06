@@ -4,7 +4,7 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 import HttpBackend from 'i18next-http-backend';
 
 // Очищаем кэш переводов в localStorage при каждом запуске
-const I18N_VERSION = '5';
+const I18N_VERSION = '6';
 const storedVersion = localStorage.getItem('i18n_version');
 if (storedVersion !== I18N_VERSION) {
     // Удаляем все старые кэши i18next

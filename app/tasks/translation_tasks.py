@@ -95,17 +95,36 @@ async def _translate_character_async(character_id: int) -> dict:
                 logger.warning(f"[TRANSLATE_TASK] Персонаж id={character_id} не найден")
                 return {"success": False, "character_id": character_id, "error": "not found"}
 
-            translated_en = await auto_translate_and_save_character(
-                character, session, target_lang='en'
-            )
-            translated_ru = await auto_translate_and_save_character(
-                character, session, target_lang='ru'
-            )
-
-            logger.info(
-                f"[TRANSLATE_TASK] Персонаж id={character_id} ({character.name}): "
-                f"EN={'OK' if translated_en else 'SKIP'}, RU={'OK' if translated_ru else 'SKIP'}"
-            )
+            # Переводим ТОЛЬКО имена, как заявлено в названии задачи (остальные поля не трогаем, чтобы не затереть)
+            from app.services.translation_service import translate_text, detect_language
+            
+            # Определяем исходный язык по имени
+            source_name = character.name or ""
+            if source_name:
+                src_lang = detect_language(source_name)
+                
+                if src_lang == 'ru':
+                    character.name_ru = source_name
+                    if not character.name_en:
+                        character.name_en = await translate_text(source_name, source='ru', target='en')
+                else:
+                    character.name_en = source_name
+                    if not character.name_ru:
+                        character.name_ru = await translate_text(source_name, source='en', target='ru')
+                        
+                await session.commit()
+                await session.refresh(character)
+                
+                translated_en = bool(character.name_en)
+                translated_ru = bool(character.name_ru)
+                logger.info(
+                    f"[TRANSLATE_TASK] Персонаж id={character_id} ({character.name}): "
+                    f"Name EN={character.name_en}, Name RU={character.name_ru}"
+                )
+            else:
+                translated_en = False
+                translated_ru = False
+                logger.warning(f"[TRANSLATE_TASK] У персонажа id={character_id} пустое имя")
 
             # Инвалидируем кэш персонажей, чтобы фронтенд получил обновлённые name_ru/name_en
             try:

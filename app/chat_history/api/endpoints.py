@@ -374,6 +374,32 @@ async def get_prompt_by_image(
                 raw_prompt_ru = image_history_record.prompt_ru
                 admin_prompt = image_history_record.admin_prompt
 
+                # 1.1.1 Проверяем, не является ли промпт заглушкой
+                # Список плейсхолдеров, которые не являются реальными промптами
+                PLACEHOLDER_PROMPTS = {
+                    "генерация изображения",
+                    "image generation",
+                    "generating...",
+                    "генерация...",
+                    "",
+                }
+                raw_prompt_normalized = (raw_prompt or "").strip().lower()
+                is_placeholder = raw_prompt_normalized in PLACEHOLDER_PROMPTS
+                
+                # Если промпт является заглушкой и нет альтернативных данных — пропускаем
+                if is_placeholder and not admin_prompt and not raw_prompt_en and not raw_prompt_ru:
+                    logger.info(
+                        f"[PROMPT_DEBUG] ImageGenerationHistory record for {file_identifier} has placeholder prompt, "
+                        f"skipping to ChatHistory search"
+                    )
+                    image_history_record = None  # Сбрасываем, чтобы не возвращать заглушку
+
+            if image_history_record:
+                raw_prompt = image_history_record.prompt
+                raw_prompt_en = image_history_record.prompt_en
+                raw_prompt_ru = image_history_record.prompt_ru
+                admin_prompt = image_history_record.admin_prompt
+
                 # 1.2 Приоритет admin_prompt - если есть, он перезаписывает все
                 if admin_prompt:
                     # Считаем admin_prompt источником истины
@@ -487,8 +513,9 @@ async def get_prompt_by_image(
                     ChatHistory.image_url != "",
                     ChatHistory.message_content.is_not(None),
                     ChatHistory.message_content != "",
-                    # Исключаем заглушки
+                    # Исключаем заглушки (RU и EN варианты)
                     not_(ChatHistory.message_content.like("Генерация изображения%")),
+                    not_(ChatHistory.message_content.like("Image generation%")),
                     not_(ChatHistory.message_content.like("[image:%"))
                 )
                 .order_by(ChatHistory.created_at.desc())
@@ -508,8 +535,9 @@ async def get_prompt_by_image(
                     ChatHistory.image_url != "",
                     ChatHistory.message_content.is_not(None),
                     ChatHistory.message_content != "",
-                    # Исключаем заглушки
+                    # Исключаем заглушки (RU и EN варианты)
                     not_(ChatHistory.message_content.like("Генерация изображения%")),
+                    not_(ChatHistory.message_content.like("Image generation%")),
                     not_(ChatHistory.message_content.like("[image:%"))
                 )
                 .order_by(ChatHistory.created_at.desc())
@@ -584,6 +612,7 @@ async def get_prompt_by_image(
                 ChatHistory.message_content.is_not(None),
                 ChatHistory.message_content != "",
                 not_(ChatHistory.message_content.like("Генерация изображения%")),
+                not_(ChatHistory.message_content.like("Image generation%")),
                 not_(ChatHistory.message_content.like("[image:%"))
             )
             .order_by(ChatHistory.created_at.desc())

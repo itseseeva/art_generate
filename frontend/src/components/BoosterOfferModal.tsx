@@ -43,8 +43,8 @@ const Overlay = styled(motion.div)`
 const ModalContainer = styled(motion.div)`
   background: linear-gradient(160deg, #0a0a0d 0%, #12121a 50%, #0d0d12 100%);
   border-radius: 24px;
-  padding: 1.5rem;
-  max-width: 672px;
+  padding: 1.25rem 2rem;
+  max-width: 800px;
   width: 100%;
   position: relative;
   border: 1px solid rgba(236, 72, 153, 0.25);
@@ -57,7 +57,7 @@ const ModalContainer = styled(motion.div)`
 
 
   @media (max-width: 700px) {
-    padding: 1.25rem;
+    padding: 1rem 1.25rem;
     max-width: 95%;
   }
 
@@ -149,12 +149,12 @@ const CloseButton = styled.button`
 const ClockContainer = styled.div`
   display: flex;
   justify-content: center;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
 `;
 
 const ClockFace = styled.div<{ $expired?: boolean }>`
-  width: 120px;
-  height: 120px;
+  width: 90px;
+  height: 90px;
   border-radius: 50%;
   background: radial-gradient(circle at 30% 30%, #2a2a3a 0%, #15151f 100%);
   border: 3px solid ${p => p.$expired ? 'rgba(100, 100, 100, 0.4)' : 'rgba(236, 72, 153, 0.5)'};
@@ -219,7 +219,7 @@ const MinuteHand = styled.div<{ $rotation: number; $expired?: boolean }>`
   top: 50%;
   left: 50%;
   width: 3px;
-  height: 40px;
+  height: 30px;
   background: ${p => p.$expired ? 'rgba(100, 100, 100, 0.6)' : 'linear-gradient(180deg, #ec4899 0%, #a855f7 100%)'};
   border-radius: 2px;
   transform-origin: 50% 100%;
@@ -234,7 +234,7 @@ const SecondHand = styled.div<{ $rotation: number; $expired?: boolean }>`
   top: 50%;
   left: 50%;
   width: 1.5px;
-  height: 45px;
+  height: 35px;
   background: ${p => p.$expired ? 'rgba(80, 80, 80, 0.5)' : '#f87171'};
   border-radius: 1px;
   transform-origin: 50% 100%;
@@ -257,9 +257,9 @@ const TimerDisplay = styled.div<{ $expired?: boolean }>`
 `;
 
 const Title = styled.h2`
-  font-size: 1.5rem;
+  font-size: 1.3rem;
   font-weight: 800;
-  line-height: 1.3;
+  line-height: 1.2;
   margin: 0 0 0.5rem 0;
   text-align: center;
   background: linear-gradient(120deg, #f472b6 0%, #ec4899 30%, #c084fc 70%, #a855f7 100%);
@@ -297,10 +297,10 @@ const Subtitle = styled.p`
 `;
 
 const Message = styled.p`
-  font-size: 0.95rem;
-  line-height: 1.5;
+  font-size: 0.9rem;
+  line-height: 1.4;
   text-align: center;
-  margin: 0 0 1rem 0;
+  margin: 0 0 0.75rem 0;
   color: rgba(255, 255, 255, 0.9);
 `;
 
@@ -348,8 +348,8 @@ const OfferBox = styled.div`
   backdrop-filter: blur(10px);
   border: 1px solid rgba(168, 85, 247, 0.25);
   border-radius: 16px;
-  padding: 1rem;
-  margin-bottom: 1rem;
+  padding: 0.75rem;
+  margin-bottom: 0.75rem;
   text-align: center;
 `;
 
@@ -364,7 +364,7 @@ const OfferItems = styled.div`
   display: flex;
   justify-content: center;
   gap: 2rem;
-  margin-bottom: 1rem;
+  margin-bottom: 0.5rem;
 
   @media (max-width: 400px) {
     gap: 1rem;
@@ -413,7 +413,7 @@ const ButtonPrice = styled.span`
 
 const PayButton = styled.button`
   width: 100%;
-  padding: 0.7rem 2rem;
+  padding: 0.6rem 2rem;
   font-size: 1.05rem;
   font-weight: 700;
   color: white;

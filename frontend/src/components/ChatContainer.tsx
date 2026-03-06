@@ -302,8 +302,8 @@ const ChatMessagesArea = styled.div`
   display: flex !important;
   flex-direction: column;
   min-width: 0;
-  overflow-x: hidden;
-  overflow-y: visible;
+  overflow-x: visible;
+  overflow-y: clip;
   min-height: 0;
   max-height: 100%;
   background: transparent;
