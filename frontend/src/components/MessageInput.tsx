@@ -910,17 +910,7 @@ export const MessageInput: React.FC<MessageInputProps> = ({
                             {t('chat.thankCreator')}
                           </MenuTextItem>
                         )}
-                        {onShowComments && (
-                          <MenuTextItem
-                            onClick={() => {
-                              onShowComments();
-                              setIsExtraMenuOpen(false);
-                            }}
-                          >
-                            <MessageSquare />
-                            {t('chat.comments') || t('common.chat')}
-                          </MenuTextItem>
-                        )}
+
                         {onClearChat && hasMessages && (
                           <MenuTextItem
                             $color="#ef4444"

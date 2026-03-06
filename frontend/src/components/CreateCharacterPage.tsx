@@ -6286,8 +6286,8 @@ ${formData.style.trim()}`;
         // Используем ref, а не generatedPhotos.length: при генерации 2-го фото state может ещё не содержать 1-е (устаревший closure), иначе второе фото перезапишет список и «первое» пропадёт
         const isFirstPhoto = !hasAutoAddedFirstPhotoRef.current;
 
-        // Автоматически вставляем первую сгенерированную фотографию в карточку персонажа (только один раз за сессию)
-        if (isFirstPhoto && createdCharacterData) {
+        // Автоматически вставляем первую сгенерированную фотографию в карточку персонажа (только один раз за сессию, и только при создании)
+        if (isFirstPhoto && createdCharacterData && mode !== 'edit') {
           hasAutoAddedFirstPhotoRef.current = true;
           const firstPhoto = { ...photo, prompt: currentPrompt, isSelected: true };
           // Сначала обновляем generatedPhotos с правильным isSelected

@@ -4195,21 +4195,14 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
   const [previewPhotoIndex, setPreviewPhotoIndex] = useState(0);
 
 
-  // Автосмена фото в превью, когда фото больше одного
+  // Автосмена фото в превью, когда фото больше одного (только выбранные главные фото)
   useEffect(() => {
-    const allPhotos: Array<{ url: string; id?: string }> = [];
-    if (selectedPhotos.length > 0) allPhotos.push(...selectedPhotos);
-    if (generatedPhotos && Array.isArray(generatedPhotos)) {
-      generatedPhotos.forEach((photo: any) => {
-        if (photo?.url && !allPhotos.some(p => p.url === photo.url)) allPhotos.push({ url: photo.url, id: photo.id });
-      });
-    }
-    if (allPhotos.length <= 1) return;
+    if (selectedPhotos.length <= 1) return;
     const interval = setInterval(() => {
       setPreviewPhotoIndex(prev => prev + 1);
     }, 3000);
     return () => clearInterval(interval);
-  }, [selectedPhotos, generatedPhotos]);
+  }, [selectedPhotos]);
 
   // Функции для авторизации
   const handleLogin = () => {
@@ -7306,7 +7299,7 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                   >
                     <PreviewImage>
                       {(() => {
-                        // Сначала выбранные фото; если пусто — показываем все загруженные из generatedPhotos
+                        // Показываем только явно выбранные фото (главные)
                         const allPhotos: Array<{ url: string; id?: string }> = [];
                         if (selectedPhotos.length > 0) {
                           selectedPhotos.forEach((selectedPhoto) => {
@@ -7318,14 +7311,6 @@ export const EditCharacterPage: React.FC<EditCharacterPageProps> = ({
                               if (!exists) {
                                 allPhotos.push({ url: selectedPhoto.url, id: selectedPhoto.id });
                               }
-                            }
-                          });
-                        }
-                        // Fallback: при редактировании, если выбранных нет, показываем загруженные фото
-                        if (allPhotos.length === 0 && generatedPhotos?.length > 0) {
-                          generatedPhotos.forEach((photo: { url?: string; id?: string }) => {
-                            if (photo?.url && !allPhotos.some(p => p.url === photo.url)) {
-                              allPhotos.push({ url: photo.url, id: photo.id });
                             }
                           });
                         }
