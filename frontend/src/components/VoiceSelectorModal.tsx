@@ -43,9 +43,13 @@ const DEFAULT_VOICE_PHOTOS: Record<string, string> = {
 const getVoicePhotoPath = (voiceName: string): string | null => {
   // Убираем расширение если есть и нормализуем имя
   const normalizedName = voiceName.replace(/\.(mp3|wav|ogg)$/i, '').toLowerCase().trim();
+
+  // Добавляем глобальный cache buster, чтобы обойти жесткое кэширование Nginx (7d)
+  const cacheBuster = Math.floor(Date.now() / 3600000);
+
   // Ищем по ключевым словам в имени
   for (const [key, path] of Object.entries(DEFAULT_VOICE_PHOTOS)) {
-    if (normalizedName.includes(key)) return path;
+    if (normalizedName.includes(key)) return `${path}?t=${cacheBuster}`;
   }
   return null; // Нет дефолтного фото — покажем SVG-плейсхолдер
 };
@@ -907,9 +911,11 @@ export const VoiceSelectorModal: React.FC<VoiceSelectorModalProps> = ({
                 const isSelectedInModal = selectedVoice?.id === voice.id || (voice.is_user_voice && selectedVoice?.url === voice.url);
 
                 const defaultPlaceholder = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iNDAiIGN5PSI0MCIgcj0iNDAiIGZpbGw9InJnYmEoNjAsIDYwLCA2MCwgMC4zKSIvPgo8cGF0aCBkPSJNMzAgNDBDMzAgMzUuMDI5IDM0LjAyOSAzMSAzOSAzMUg0MUM0NS45NzEgMzEgNTAgMzUuMDI5IDUwIDQwQzUwIDQ0Ljk3MSA0NS45NzEgNDkgNDEgNDlIMzlDMzQuMDI5IDQ5IDMwIDQ0Ljk3MSAzMCA0MFoiIGZpbGw9InJnYmEoMTUwLCAxNTAsIDE1MCwgMC41KSIvPgo8L3N2Zz4K';
+
+                const cacheBuster = Math.floor(Date.now() / 3600000);
                 const photoPath = voice.is_user_voice
                   ? (voice.photo_url
-                    ? getMediaUrl(voice.photo_url)
+                    ? `${getMediaUrl(voice.photo_url)}${voice.photo_url.includes('?') ? '&' : '?'}t=${cacheBuster}`
                     : defaultPlaceholder)
                   : (getVoicePhotoPath(voice.name) ?? defaultPlaceholder);
 

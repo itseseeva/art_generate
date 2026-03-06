@@ -4563,9 +4563,14 @@ const MAX_MAIN_PHOTOS = 3;
  * Получает путь к фотографии голоса по его имени
  */
 const getVoicePhotoPath = (voiceName: string, t: number = 0): string => {
+  // Убираем расширение если есть и нормализуем имя
   const normalizedName = voiceName.replace(/\.(mp3|wav|ogg)$/i, '');
+
+  // Добавляем глобальный cache buster, чтобы обойти жесткое кэширование Nginx (7d)
+  const cacheBuster = t || Math.floor(Date.now() / 3600000);
+
   const url = `/default_voice_photo/${normalizedName}.png`;
-  return t ? `${url}?t=${t}` : url;
+  return `${url}?t=${cacheBuster}`;
 };
 
 export const CreateCharacterPage: React.FC<CreateCharacterPageProps> = ({
@@ -7401,11 +7406,18 @@ ${formData.style.trim()}`;
                                     : String(selectedVoiceId || '') === String(voice.id || '');
                                   const audioUrl = voice.preview_url || voice.url;
                                   const isPlaying = playingVoiceUrl !== null && (playingVoiceUrl === audioUrl || playingVoiceUrl === voice.url || playingVoiceUrl === voice.preview_url);
-                                  const photoPath = isUserVoice
-                                    ? (voice.photo_url
-                                      ? (voice.photo_url.startsWith('http') ? voice.photo_url : `${API_CONFIG.BASE_URL}${voice.photo_url}`)
-                                      : 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iNDAiIGN5PSI0MCIgcj0iNDAiIGZpbGw9InJnYmEoNjAsIDYwLCA2MCwgMC4zKSIvPgo8cGF0aCBkPSJNMzAgNDBDMzAgMzUuMDI5IDM0LjAyOSAzMSAzOSAzMUg0MUM0NS45NzEgMzEgNTAgMzUuMDI5IDUwIDQwQzUwIDQ0Ljk3MSA0NS45NzEgNDkgNDEgNDlIMzlDMzQuMDI5IDQ5IDMwIDQ0Ljk3MSAzMCA0MFoiIGZpbGw9InJnYmEoMTUwLCAxNTAsIDE1MCwgMC41KSIvPgo8L3N2Zz4K')
-                                    : getVoicePhotoPath(voice.name, photoUpdateCounter);
+                                  const placeholder = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iODAiIHZpZXdCb3g9IjAgMCA4MCA4MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iNDAiIGN5PSI0MCIgcj0iNDAiIGZpbGw9InJnYmEoNjAsIDYwLCA2MCwgMC4zKSIvPgo8cGF0aCBkPSJNMzAgNDBDMzAgMzUuMDI5IDM0LjAyOSAzMSAzOSAzMUg0MUM0NS45NzEgMzEgNTAgMzUuMDI5IDUwIDQwQzUwIDQ0Ljk3MSA0NS45NzEgNDkgNDEgNDlIMzlDMzQuMDI5IDQ5IDMwIDQ0Ljk3MSAzMCA0MFoiIGZpbGw9InJnYmEoMTUwLCAxNTAsIDE1MCwgMC41KSIvPgo8L3N2Zz4K';
+                                  let photoPath = placeholder;
+                                  if (isUserVoice) {
+                                    if (voice.photo_url) {
+                                      let baseUrl = voice.photo_url.startsWith('http') ? voice.photo_url : `${API_CONFIG.BASE_URL}${voice.photo_url}`;
+                                      photoPath = baseUrl.includes('?')
+                                        ? `${baseUrl}&t=${photoUpdateCounter || Math.floor(Date.now() / 3600000)}`
+                                        : `${baseUrl}?t=${photoUpdateCounter || Math.floor(Date.now() / 3600000)}`;
+                                    }
+                                  } else {
+                                    photoPath = getVoicePhotoPath(voice.name, photoUpdateCounter);
+                                  }
                                   const isEditingName = editingVoiceId === (voice.id || voice.user_voice_id) || editingVoiceId === String(voice.id || voice.user_voice_id);
                                   const editedName = editedVoiceNames[voice.id || voice.user_voice_id] || voice.name;
                                   const isEditingPhoto = editingVoicePhotoId === (voice.id || voice.user_voice_id) || editingVoicePhotoId === String(voice.id || voice.user_voice_id);
