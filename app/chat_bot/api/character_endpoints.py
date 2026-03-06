@@ -1093,13 +1093,13 @@ async def update_default_voice_photo(
         if len(photo_data) == 0:
             raise HTTPException(status_code=400, detail="Файл пустой")
             
-        # Папка default_voice_photo во фронтенде (в папке public)
-        frontend_dir = BASE_DIR / "frontend" / "public" / "default_voice_photo"
-        if not frontend_dir.exists():
-            frontend_dir.mkdir(parents=True, exist_ok=True)
+        # Папка default_voice_photo в бэкенде
+        from app.config.paths import DEFAULT_VOICE_PHOTOS_DIR
+        if not DEFAULT_VOICE_PHOTOS_DIR.exists():
+            DEFAULT_VOICE_PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
             
         # Сохраняем всегда как .png, т.к. фронтенд так ожидает (getVoicePhotoPath)
-        photo_path = frontend_dir / f"{voice_name}.png"
+        photo_path = DEFAULT_VOICE_PHOTOS_DIR / f"{voice_name}.png"
         
         with open(photo_path, "wb") as f:
             f.write(photo_data)

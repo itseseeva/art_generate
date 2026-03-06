@@ -1077,7 +1077,12 @@ try:
     
     # Монтируем папку для дефолтных голосов персонажей
     try:
-        from app.config.paths import DEFAULT_CHARACTER_VOICES_DIR
+        from app.config.paths import DEFAULT_CHARACTER_VOICES_DIR, DEFAULT_VOICE_PHOTOS_DIR
+        
+        # Создаем папку для фото, если её нет
+        DEFAULT_VOICE_PHOTOS_DIR.mkdir(parents=True, exist_ok=True)
+        app.mount("/default_voice_photo", StaticFiles(directory=str(DEFAULT_VOICE_PHOTOS_DIR), html=False), name="default_voice_photo")
+        
         logger.info(f"[DEBUG] Попытка монтирования дефолтных голосов: {DEFAULT_CHARACTER_VOICES_DIR}")
         if DEFAULT_CHARACTER_VOICES_DIR.exists():
             files = list(DEFAULT_CHARACTER_VOICES_DIR.glob("*.mp3"))
