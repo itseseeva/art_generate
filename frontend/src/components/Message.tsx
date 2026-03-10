@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, memo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
+import { useTranslation } from 'react-i18next';
 import { theme } from '../theme';
 import { FiX, FiImage, FiFolder, FiVolume2, FiPlay, FiPause, FiSettings } from 'react-icons/fi';
 import { Plus, Loader2 } from 'lucide-react';
@@ -795,6 +796,7 @@ const MessageComponent: React.FC<MessageProps> = ({
   onSelectVoice,
   onOutOfLimits
 }) => {
+  const { t, i18n } = useTranslation();
   // Функция для получения первой буквы из username или email
   const getUserInitial = (): string => {
     if (userUsername) {
@@ -1435,12 +1437,12 @@ const MessageComponent: React.FC<MessageProps> = ({
                       {isVoiceLoading ? (
                         <VoiceButtonContent>
                           <Loader2 className="animate-spin" />
-                          <span>Генерация...</span>
+                          <span>{i18n.language?.startsWith('en') ? 'Generating...' : 'Генерация...'}</span>
                         </VoiceButtonContent>
                       ) : (
                         <VoiceButtonContent>
                           <FiVolume2 />
-                          <span>{audioUrl ? 'Перегенерировать' : 'Сгенерировать голос'}</span>
+                          <span>{audioUrl ? (i18n.language?.startsWith('en') ? 'Regenerate' : 'Перегенерировать') : (i18n.language?.startsWith('en') ? 'Generate Voice' : 'Сгенерировать голос')}</span>
                         </VoiceButtonContent>
                       )}
                     </VoiceButton>
@@ -1503,7 +1505,7 @@ const MessageComponent: React.FC<MessageProps> = ({
                   >
                     <VoiceButtonContent>
                       {isPlaying ? <FiPause /> : <FiPlay />}
-                      <span>{isPlaying ? 'Остановить' : 'Повторить'}</span>
+                      <span>{isPlaying ? (i18n.language?.startsWith('en') ? 'Stop' : 'Остановить') : (i18n.language?.startsWith('en') ? 'Repeat' : 'Повторить')}</span>
                     </VoiceButtonContent>
                     {isPlaying && (
                       <WaveformContainer $isPlaying={isPlaying}>
@@ -1522,7 +1524,7 @@ const MessageComponent: React.FC<MessageProps> = ({
                   >
                     <VoiceButtonContent>
                       <FiSettings />
-                      <span>Выбрать голос</span>
+                      <span>{i18n.language?.startsWith('en') ? 'Select Voice' : 'Выбрать голос'}</span>
                     </VoiceButtonContent>
                   </SelectVoiceButton>
                 </MessageButtonsRow>

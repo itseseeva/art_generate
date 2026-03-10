@@ -21,7 +21,6 @@ const isPremiumVoiceForStyle = (voiceName?: string): boolean => {
   return name.includes('мита') || name.includes('meet') || name === 'мика' || name.includes('eleanor');
 };
 
-// Список голосов у которых есть дефолтное фото
 const DEFAULT_VOICE_PHOTOS: Record<string, string> = {
   'мита': '/default_voice_photo/Мита.png',
   'mita': '/default_voice_photo/Мита.png',
@@ -37,6 +36,10 @@ const DEFAULT_VOICE_PHOTOS: Record<string, string> = {
   'dasha': '/default_voice_photo/Даша.png',
   'eleanor': '/default_voice_photo/Eleanor.png',
   'eva': '/default_voice_photo/EVA.png',
+  'anne': '/default_voice_photo/Anne.png',
+  'catherine': '/default_voice_photo/Catherine.png',
+  'kogami': '/default_voice_photo/Kogami.png',
+  'victoria': '/default_voice_photo/Victoria.png',
 };
 
 // Функция для получения пути к фото дефолтного голоса
