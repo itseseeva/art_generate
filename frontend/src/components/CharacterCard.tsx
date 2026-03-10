@@ -1650,6 +1650,67 @@ interface CharacterCardProps {
   hidePromptIcon?: boolean; // Hide explicit prompt "Sparkles" icon
 }
 
+// ═══════════════════════════════════════════════════════════
+// ТРИ SLAM-АНИМАЦИИ — плавное врезание с лёгким затуханием
+// ═══════════════════════════════════════════════════════════
+
+// ── Анимация 1: SLAM FROM RIGHT — прилетает справа → влево ──
+const slamRightVariants = {
+  initial: { x: '110%', opacity: 0 },
+  animate: {
+    x: ['110%', '-2.5%', '1%', '0%'],
+    opacity: [0, 1, 1, 1],
+    scaleX: [1.06, 0.99, 1.01, 1.0],
+  },
+  exit: { x: '-110%', opacity: 0 },
+};
+const slamRightTransition = {
+  duration: 0.62,
+  ease: 'easeOut' as const,
+  times: [0, 0.55, 0.78, 1],
+  exit: { duration: 0.22, ease: 'easeIn' as const },
+} as import('motion/react').Transition;
+
+// ── Анимация 2: SLAM FROM LEFT — прилетает слева → вправо ──
+const slamLeftVariants = {
+  initial: { x: '-110%', opacity: 0 },
+  animate: {
+    x: ['-110%', '2.5%', '-1%', '0%'],
+    opacity: [0, 1, 1, 1],
+    scaleX: [1.06, 0.99, 1.01, 1.0],
+  },
+  exit: { x: '110%', opacity: 0 },
+};
+const slamLeftTransition = {
+  duration: 0.62,
+  ease: 'easeOut' as const,
+  times: [0, 0.55, 0.78, 1],
+  exit: { duration: 0.22, ease: 'easeIn' as const },
+} as import('motion/react').Transition;
+
+// ── Анимация 3: SLAM FROM TOP — прилетает сверху → вниз ──
+const slamTopVariants = {
+  initial: { y: '-110%', opacity: 0 },
+  animate: {
+    y: ['-110%', '2.5%', '-1%', '0%'],
+    opacity: [0, 1, 1, 1],
+    scaleY: [1.06, 0.99, 1.01, 1.0],
+  },
+  exit: { y: '110%', opacity: 0 },
+};
+const slamTopTransition = {
+  duration: 0.62,
+  ease: 'easeOut' as const,
+  times: [0, 0.55, 0.78, 1],
+  exit: { duration: 0.22, ease: 'easeIn' as const },
+} as import('motion/react').Transition;
+
+const slideAnimationConfigs = [
+  { variants: slamRightVariants, transition: slamRightTransition, perspective: false },
+  { variants: slamLeftVariants, transition: slamLeftTransition, perspective: false },
+  { variants: slamTopVariants, transition: slamTopTransition, perspective: false },
+];
+
 // Компонент слайд-шоу
 const SlideShow: React.FC<{
   photos: string[];
@@ -1666,7 +1727,7 @@ const SlideShow: React.FC<{
 
     const interval = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % photos.length);
-    }, 3000); // Меняем слайд каждые 3 секунды
+    }, 3000);
 
     return () => clearInterval(interval);
   }, [photos.length]);
@@ -1697,27 +1758,49 @@ const SlideShow: React.FC<{
     );
   }
 
+  const animIdx = currentSlide % slideAnimationConfigs.length;
+  const { variants, transition, perspective } = slideAnimationConfigs[animIdx];
+
   return (
     <>
       <PhotoContainer $clickable={false} $isHovered={isHovered}>
-        <AnimatePresence>
-          <motion.div
-            key={currentSlide}
-            initial={{ opacity: 0, x: currentSlide % 2 === 0 ? '-15%' : '15%', scale: 0.95 }}
-            animate={{ opacity: 1, x: 0, scale: 1 }}
-            exit={{ opacity: 0, scale: 1.05 }}
-            transition={{ duration: 0.8, ease: "easeOut" }}
-            style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
-          >
-            <OptimizedImage
-              src={photos[currentSlide] || ''}
-              alt={`${characterName || 'Character'} - Slide ${currentSlide + 1} `}
-              eager={currentSlide === 0}
-              priority={currentSlide === 0}
-              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 300px"
-            />
-          </motion.div>
-        </AnimatePresence>
+        {/* Враппер с perspective для 3D Card Flip; overflow hidden для clip-path анимаций */}
+        <div style={{
+          width: '100%',
+          height: '100%',
+          position: 'relative',
+          overflow: 'hidden',
+          borderRadius: 'inherit',
+          perspective: perspective ? '700px' : undefined,
+        }}>
+          <AnimatePresence>
+            <motion.div
+              key={currentSlide}
+              variants={variants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              transition={transition}
+              style={{
+                width: '100%',
+                height: '100%',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                willChange: 'transform, clip-path, opacity, filter',
+                transformStyle: perspective ? 'preserve-3d' : undefined,
+              }}
+            >
+              <OptimizedImage
+                src={photos[currentSlide] || ''}
+                alt={`${characterName || 'Character'} - Slide ${currentSlide + 1}`}
+                eager={currentSlide === 0}
+                priority={currentSlide === 0}
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 300px"
+              />
+            </motion.div>
+          </AnimatePresence>
+        </div>
       </PhotoContainer>
       {photos.length > 1 && !hideDots && (
         <SlideDots>

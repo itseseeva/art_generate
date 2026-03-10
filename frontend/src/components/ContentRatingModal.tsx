@@ -1,179 +1,7 @@
-import React from 'react';
-import styled from 'styled-components';
+import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Shield, Flame } from 'lucide-react';
-
-const ModalOverlay = styled(motion.div)`
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
-  backdrop-filter: blur(15px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 10000;
-  padding: 20px;
-`;
-
-const ModalContent = styled(motion.div)`
-  background: rgba(20, 20, 30, 0.85);
-  backdrop-filter: blur(15px);
-  border-radius: 0;
-  padding: 40px;
-  max-width: 800px;
-  width: 100%;
-  position: relative;
-  border: 1px solid;
-  border-image: linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(236, 72, 153, 0.3)) 1;
-  box-shadow: 
-    0 8px 32px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-`;
-
-const ModalTitle = styled.h2`
-  font-size: 28px;
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.95);
-  margin: 0 0 12px 0;
-  text-align: center;
-  letter-spacing: -0.02em;
-`;
-
-const ModalDescription = styled.p`
-  font-size: 16px;
-  color: rgba(200, 200, 220, 0.8);
-  margin: 0 0 32px 0;
-  text-align: center;
-  line-height: 1.5;
-`;
-
-const OptionsContainer = styled.div`
-  display: flex;
-  flex-direction: row;
-  gap: 16px;
-  
-  @media (max-width: 768px) {
-    flex-direction: column;
-  }
-`;
-
-const OptionButton = styled(motion.button) <{ $isSelected: boolean; $variant: 'safe' | 'nsfw' }>`
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 16px;
-  flex: 1;
-  padding: 16px 32px;
-  background: ${props =>
-    props.$isSelected
-      ? (props.$variant === 'safe'
-        ? 'rgba(34, 197, 94, 0.15)'
-        : 'rgba(239, 68, 68, 0.15)')
-      : 'rgba(40, 40, 50, 0.6)'
-  };
-  border: none;
-  border-radius: 0;
-  cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  text-align: left;
-  position: relative;
-  overflow: hidden;
-  box-shadow: 
-    0 4px 16px rgba(0, 0, 0, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
-
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
-    transition: left 0.5s ease;
-  }
-  
-  &:hover::before {
-    left: 100%;
-  }
-
-  &:hover {
-    background: ${props =>
-    props.$variant === 'safe'
-      ? 'rgba(34, 197, 94, 0.2)'
-      : 'rgba(239, 68, 68, 0.2)'
-  };
-    transform: translateY(-2px);
-    box-shadow: 
-      0 6px 24px rgba(0, 0, 0, 0.3),
-      inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  }
-
-  &:active {
-    transform: translateY(0);
-  }
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    transform: none;
-  }
-`;
-
-const OptionIcon = styled.div<{ $variant: 'safe' | 'nsfw' }>`
-  width: 40px;
-  height: 40px;
-  border-radius: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  background: ${props =>
-    props.$variant === 'safe'
-      ? 'rgba(34, 197, 94, 0.2)'
-      : 'rgba(239, 68, 68, 0.2)'
-  };
-  color: ${props =>
-    props.$variant === 'safe'
-      ? 'rgba(34, 197, 94, 1)'
-      : 'rgba(239, 68, 68, 1)'
-  };
-  flex-shrink: 0;
-`;
-
-const OptionContent = styled.div`
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  align-items: flex-start;
-  text-align: left;
-  min-width: 0;
-`;
-
-const OptionTitle = styled.div`
-  font-size: 18px;
-  font-weight: 600;
-  color: rgba(255, 255, 255, 0.95);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  white-space: nowrap;
-`;
-
-const OptionSubtitle = styled.div`
-  font-size: 14px;
-  color: rgba(180, 180, 200, 0.7);
-  line-height: 1.4;
-  text-align: left;
-`;
-
+import { useTranslation } from 'react-i18next';
 
 interface ContentRatingModalProps {
   isOpen: boolean;
@@ -186,76 +14,178 @@ export const ContentRatingModal: React.FC<ContentRatingModalProps> = ({
   onClose,
   onSelect
 }) => {
+  const { i18n } = useTranslation();
+  const isEn = i18n.language?.startsWith('en');
+  const [selectedRating, setSelectedRating] = useState<'safe' | 'nsfw' | null>(null);
+
   const handleRatingSelect = (rating: 'safe' | 'nsfw') => {
-    onSelect(rating);
+    setSelectedRating(rating);
+    setTimeout(() => {
+      onSelect(rating);
+      setTimeout(() => setSelectedRating(null), 300);
+    }, 500);
+  };
+
+  const handleClose = () => {
+    setSelectedRating(null);
+    onClose();
+  };
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: { staggerChildren: 0.1 }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 30 },
+    show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } }
   };
 
   return (
     <AnimatePresence>
       {isOpen && (
-        <ModalOverlay
+        <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          onClick={onClose}
+          className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-[#050505]/80 backdrop-blur-md"
+          onClick={handleClose}
         >
-          <ModalContent
-            initial={{ scale: 0.9, opacity: 0, y: 20 }}
+          <style>{`
+            @keyframes shimmerGlow {
+              0% { transform: translateX(-100%); }
+              100% { transform: translateX(100%); }
+            }
+            .animate-shimmer-glow {
+              animation: shimmerGlow 2s linear infinite;
+            }
+          `}</style>
+
+          <motion.div
+            initial={{ scale: 0.95, opacity: 0, y: 20 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.9, opacity: 0, y: 20 }}
+            exit={{ scale: 0.95, opacity: 0, y: 20 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+            className="relative w-full max-w-3xl p-8 md:p-10 rounded-3xl bg-[#0a0a0a]/90 backdrop-blur-xl border border-white/10 shadow-[0_8px_40px_rgba(0,0,0,0.8)] overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <ModalTitle>Выберите рейтинг контента</ModalTitle>
-            <ModalDescription>
-              Выберите категорию для вашего персонажа. Это определит, на какой странице он будет отображаться.
-            </ModalDescription>
+            {/* Top gradient accent line */}
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
 
-            <OptionsContainer>
-              <OptionButton
-                $isSelected={false}
-                $variant="safe"
+            <div className="text-center mb-10 mt-2">
+              <motion.h2
+                className="text-3xl md:text-4xl font-bold tracking-tight bg-gradient-to-b from-white to-gray-400 bg-clip-text text-transparent mb-4"
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1, duration: 0.5 }}
+              >
+                {isEn ? 'Select Content Rating' : 'Выберите рейтинг контента'}
+              </motion.h2>
+              <motion.p
+                className="text-slate-400 text-sm md:text-base max-w-xl mx-auto leading-relaxed"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.2, duration: 0.5 }}
+              >
+                {isEn
+                  ? 'Choose a category for your character. This determines which page they will be displayed on.'
+                  : 'Выберите категорию для вашего персонажа. Это определит, на какой странице он будет отображаться.'}
+              </motion.p>
+            </div>
+
+            <motion.div
+              className="flex flex-col md:flex-row gap-6"
+              variants={containerVariants}
+              initial="hidden"
+              animate="show"
+            >
+              {/* SAFE Card */}
+              <motion.button
+                variants={itemVariants}
                 onClick={() => handleRatingSelect('safe')}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                disabled={selectedRating !== null}
+                whileHover={selectedRating === null ? { scale: 1.03 } : {}}
+                whileTap={selectedRating === null ? { scale: 0.98 } : {}}
+                className={`group relative flex-1 text-left p-6 md:p-8 rounded-2xl border transition-all duration-300 overflow-hidden ${selectedRating === 'safe'
+                    ? 'border-emerald-500 shadow-[0_0_30px_rgba(16,185,129,0.3)] bg-emerald-500/10'
+                    : selectedRating === 'nsfw'
+                      ? 'border-white/5 opacity-40 bg-white/5'
+                      : 'border-white/10 bg-white/5 hover:border-emerald-500/50 hover:bg-emerald-500/10 hover:shadow-[0_0_20px_rgba(16,185,129,0.15)]'
+                  }`}
               >
-                <OptionIcon $variant="safe">
-                  <Shield size={24} />
-                </OptionIcon>
-                <OptionContent>
-                  <OptionTitle>
-                    SAFE 16+
-                    <span style={{ fontSize: '12px', color: 'rgba(34, 197, 94, 0.8)' }}>✓</span>
-                  </OptionTitle>
-                  <OptionSubtitle>
-                    Безопасный контент для всех возрастов. Персонаж будет отображаться на странице SAFE.
-                  </OptionSubtitle>
-                </OptionContent>
-              </OptionButton>
+                {selectedRating === 'safe' && (
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-emerald-500/30 to-transparent w-[200%] animate-shimmer-glow"></div>
+                )}
 
-              <OptionButton
-                $isSelected={false}
-                $variant="nsfw"
+                <div className="relative z-10 flex flex-col gap-5">
+                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-inner ${selectedRating === 'safe'
+                      ? 'bg-emerald-500/20 text-emerald-400 shadow-emerald-500/30'
+                      : 'bg-white/5 text-slate-400 group-hover:bg-emerald-500/20 group-hover:text-emerald-400 group-hover:shadow-emerald-500/30'
+                    }`}>
+                    <Shield size={28} className={selectedRating === 'safe' ? 'drop-shadow-[0_0_8px_rgba(16,185,129,0.8)]' : 'group-hover:drop-shadow-[0_0_8px_rgba(16,185,129,0.8)] transition-all duration-300'} />
+                  </div>
+
+                  <div>
+                    <h3 className={`text-xl font-bold tracking-wide flex items-center gap-2 mb-2 transition-colors duration-300 ${selectedRating === 'safe' ? 'text-emerald-400' : 'text-gray-100 group-hover:text-emerald-400'
+                      }`}>
+                      SAFE 16+
+                      {selectedRating === 'safe' && <span className="text-emerald-400 text-sm bg-emerald-500/20 w-6 h-6 rounded-full flex items-center justify-center -ml-1">✓</span>}
+                    </h3>
+                    <p className="text-slate-400 text-sm leading-relaxed">
+                      {isEn
+                        ? 'Safe content for all ages. Character will appear on the SAFE page.'
+                        : 'Безопасный контент для всех возрастов. Персонаж будет отображаться на странице SAFE.'}
+                    </p>
+                  </div>
+                </div>
+              </motion.button>
+
+              {/* NSFW Card */}
+              <motion.button
+                variants={itemVariants}
                 onClick={() => handleRatingSelect('nsfw')}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                disabled={selectedRating !== null}
+                whileHover={selectedRating === null ? { scale: 1.03 } : {}}
+                whileTap={selectedRating === null ? { scale: 0.98 } : {}}
+                className={`group relative flex-1 text-left p-6 md:p-8 rounded-2xl border transition-all duration-300 overflow-hidden ${selectedRating === 'nsfw'
+                    ? 'border-rose-500 shadow-[0_0_30px_rgba(244,63,94,0.3)] bg-rose-500/10'
+                    : selectedRating === 'safe'
+                      ? 'border-white/5 opacity-40 bg-white/5'
+                      : 'border-white/10 bg-white/5 hover:border-rose-500/50 hover:bg-rose-500/10 hover:shadow-[0_0_20px_rgba(244,63,94,0.15)]'
+                  }`}
               >
-                <OptionIcon $variant="nsfw">
-                  <Flame size={24} />
-                </OptionIcon>
-                <OptionContent>
-                  <OptionTitle>
-                    NSFW 18+
-                    <span style={{ fontSize: '12px', color: 'rgba(239, 68, 68, 0.8)' }}>⚠</span>
-                  </OptionTitle>
-                  <OptionSubtitle>
-                    Контент для взрослых. Персонаж будет отображаться на странице NSFW.
-                  </OptionSubtitle>
-                </OptionContent>
-              </OptionButton>
-            </OptionsContainer>
-          </ModalContent>
-        </ModalOverlay>
+                {selectedRating === 'nsfw' && (
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-rose-500/30 to-transparent w-[200%] animate-shimmer-glow"></div>
+                )}
+
+                <div className="relative z-10 flex flex-col gap-5">
+                  <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-300 shadow-inner ${selectedRating === 'nsfw'
+                      ? 'bg-rose-500/20 text-rose-400 shadow-rose-500/30'
+                      : 'bg-white/5 text-slate-400 group-hover:bg-rose-500/20 group-hover:text-rose-400 group-hover:shadow-rose-500/30'
+                    }`}>
+                    <Flame size={28} className={selectedRating === 'nsfw' ? 'drop-shadow-[0_0_8px_rgba(244,63,94,0.8)]' : 'group-hover:drop-shadow-[0_0_8px_rgba(244,63,94,0.8)] transition-all duration-300'} />
+                  </div>
+
+                  <div>
+                    <h3 className={`text-xl font-bold tracking-wide flex items-center gap-2 mb-2 transition-colors duration-300 ${selectedRating === 'nsfw' ? 'text-rose-400' : 'text-gray-100 group-hover:text-rose-400'
+                      }`}>
+                      NSFW 18+
+                      {selectedRating === 'nsfw' && <span className="text-rose-400 text-sm font-bold bg-rose-500/20 w-6 h-6 rounded-full flex items-center justify-center -ml-1">!</span>}
+                    </h3>
+                    <p className="text-slate-400 text-sm leading-relaxed">
+                      {isEn
+                        ? 'Adult content. Character will appear on the NSFW page.'
+                        : 'Контент для взрослых. Персонаж будет отображаться на странице NSFW.'}
+                    </p>
+                  </div>
+                </div>
+              </motion.button>
+            </motion.div>
+          </motion.div>
+        </motion.div>
       )}
     </AnimatePresence>
   );

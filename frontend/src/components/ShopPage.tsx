@@ -166,16 +166,6 @@ export const ShopPage: React.FC<any> = ({
   const calculatePrice = (basePrice: number, isStandard1MonthOverride: boolean = false) => {
     const months = CYCLE_MONTHS[billingCycle];
 
-    if (isStandard1MonthOverride && billingCycle === 'monthly') {
-      return {
-        monthly: 200,
-        total: 200,
-        originalMonthly: basePrice,
-        originalTotal: basePrice,
-        discountPercent: Math.round(100 - (200 / basePrice) * 100)
-      };
-    }
-
     const discount = DISCOUNTS[billingCycle];
     const monthlyDiscounted = basePrice * (1 - discount);
     const roundedMonthly = Math.floor(monthlyDiscounted);

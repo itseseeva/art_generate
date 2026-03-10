@@ -38,6 +38,7 @@ const HeaderContainer = styled.div`
 
 const LeftSection = styled.div`
   display: flex;
+  position: relative;
   align-items: center;
   justify-content: flex-start;
   gap: 1rem;
@@ -51,13 +52,30 @@ const LeftSection = styled.div`
 `;
 
 const LogoImage = styled.img`
-  height: 58px;
+  position: absolute;
+  left: 115px;
+  height: 51px;
+  width: auto;
+  min-width: 188px;
   cursor: pointer;
-  object-fit: contain;
-  margin-left: 10px;
+  object-fit: fill;
+  transform: translateY(0%);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), filter 0.2s ease;
+
+  &:hover {
+    transform: translateY(0%) scale(1.03);
+    filter: drop-shadow(0 0 12px rgba(168, 85, 247, 0.4));
+  }
+
+  &:active {
+    transform: translateY(0%) scale(0.96);
+  }
 
   @media (max-width: 768px) {
-    transform: translateX(-15%);
+    left: 75px;
+    height: 36px;
+    min-width: 130px;
+    transform: translateY(5%);
   }
 `;
 
@@ -747,7 +765,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
       <LeftSection>
         <MenuToggle toggle={onToggle} isOpen={isOpen} />
         <LogoImage
-          src="/photo_2026-03-04_04-32-16-removebg-preview.png"
+          src="/candy_girls.png"
           alt="Logo"
           onClick={handleHome}
         />

@@ -53,25 +53,6 @@ const LeftSection = styled.div`
   }
 `;
 
-const MainHeading = styled.h1`
-  font-size: 48px;
-  font-weight: 700;
-  margin-bottom: 16px;
-  line-height: 1.2;
-  color: white;
-  
-  span {
-    background: linear-gradient(135deg, #e879f9 0%, #a855f7 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  @media (max-width: 968px) {
-    font-size: 36px;
-  }
-`;
-
 const Subtitle = styled.p`
   font-size: 18px;
   color: rgba(255, 255, 255, 0.7);
@@ -435,8 +416,6 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, onVerifyCode, o
       </BackgroundWrapper>
 
       <LeftSection>
-        <MainHeading dangerouslySetInnerHTML={{ __html: t('auth.loginHeading') }} />
-
         <Subtitle>
           {t('auth.loginSubtitle')}
         </Subtitle>
@@ -458,7 +437,7 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, onVerifyCode, o
         <FormContainer>
           {!showVerification ? (
             <>
-              <FormTitle>{t('auth.registerTitle')}</FormTitle>
+              <FormTitle dangerouslySetInnerHTML={{ __html: t('auth.registerTitle') }} />
               <FormSubtitle>{t('auth.registerSubtitle')}</FormSubtitle>
 
               {error && <ErrorMessage>{error}</ErrorMessage>}

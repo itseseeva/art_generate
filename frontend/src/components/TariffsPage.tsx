@@ -533,8 +533,8 @@ export const TariffsPage: React.FC = () => {
 
     try {
       const receiverWallet = '4100119070489003';
-      // Standard теперь 499, Premium 1199 (временно 150 для 1 мес)
-      const amount = subscriptionType === 'premium' ? 1199 : 150;
+      // Standard теперь 449, Premium 1199
+      const amount = subscriptionType === 'premium' ? 1199 : 449;
       const label = `plan:${subscriptionType};uid:${currentUserId}`;
       const successURL = `${window.location.origin}/frontend/payment/success/`;
       const quickPayUrl =
@@ -563,8 +563,8 @@ export const TariffsPage: React.FC = () => {
     if (!userInfo?.id) return;
 
     try {
-      // Standard теперь 499, Premium 1199 (временно 150 для 1 мес)
-      const amount = subscriptionType === 'premium' ? 1199 : 150;
+      // Standard теперь 449, Premium 1199
+      const amount = subscriptionType === 'premium' ? 1199 : 449;
       const description = subscriptionType === 'premium'
         ? 'Оплата подписки PREMIUM на 30 дней'
         : 'Оплата подписки STANDARD на 30 дней';
