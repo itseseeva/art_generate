@@ -11,7 +11,8 @@ import {
   Sparkles,
   Shield,
   Smartphone,
-  CreditCard
+  CreditCard,
+  Star
 } from 'lucide-react';
 import { AuthModal } from './AuthModal';
 import { API_CONFIG } from '../config/api';
@@ -46,6 +47,58 @@ const CYCLE_MONTHS = {
   '3_months': 3,
   '6_months': 6,
   'yearly': 12
+};
+
+// --- Toast: активация подписки ---
+const SubscriptionActivatedToast: React.FC<{ plan: string; onClose: () => void }> = ({ plan, onClose }) => {
+  const isPremium = plan === 'premium';
+  const isPaid = plan === 'paid';
+
+  const colors = isPaid
+    ? { border: 'border-emerald-500/40', bg: 'from-emerald-950/90 via-teal-950/90 to-slate-950/90', glow: 'shadow-emerald-500/20', line: 'via-emerald-400/60', icon: 'from-emerald-500 to-teal-600 shadow-emerald-500/30', star: 'text-emerald-400 fill-emerald-400', label: 'text-emerald-400', bar: 'from-emerald-500 to-teal-500' }
+    : isPremium
+    ? { border: 'border-red-500/40', bg: 'from-red-950/90 via-purple-950/90 to-slate-950/90', glow: 'shadow-red-500/20', line: 'via-red-400/60', icon: 'from-red-500 to-purple-600 shadow-red-500/30', star: 'text-red-400 fill-red-400', label: 'text-red-400', bar: 'from-red-500 to-purple-500' }
+    : { border: 'border-amber-500/40', bg: 'from-amber-950/90 via-orange-950/90 to-slate-950/90', glow: 'shadow-amber-500/20', line: 'via-amber-400/60', icon: 'from-amber-400 to-orange-500 shadow-amber-500/30', star: 'text-amber-400 fill-amber-400', label: 'text-amber-400', bar: 'from-amber-400 to-orange-500' };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: 80, scale: 0.85 }}
+      animate={{ opacity: 1, x: 0, scale: 1 }}
+      exit={{ opacity: 0, x: 80, scale: 0.85 }}
+      transition={{ type: 'spring', stiffness: 300, damping: 24 }}
+      className="fixed top-20 right-6 z-[9999] w-80 pointer-events-auto"
+    >
+      <div className={`relative overflow-hidden rounded-2xl border shadow-2xl backdrop-blur-xl p-5 flex gap-4 items-start bg-gradient-to-br ${colors.bg} ${colors.border} ${colors.glow}`}>
+        <div className={`absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent ${colors.line} to-transparent`} />
+        <div className={`flex-shrink-0 w-12 h-12 rounded-xl flex items-center justify-center shadow-lg bg-gradient-to-br ${colors.icon}`}>
+          <Crown size={22} className="text-white" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 mb-1">
+            <Star size={12} className={colors.star} />
+            <p className={`text-xs font-bold uppercase tracking-wider ${colors.label}`}>
+              {isPaid ? '\u041e\u043f\u043b\u0430\u0442\u0430 \u043f\u0440\u043e\u0448\u043b\u0430' : '\u041f\u043e\u0434\u043f\u0438\u0441\u043a\u0430 \u0430\u043a\u0442\u0438\u0432\u0438\u0440\u043e\u0432\u0430\u043d\u0430'}
+            </p>
+          </div>
+          <h4 className="text-white font-bold text-base leading-tight">
+            {isPaid ? '\u2705 \u0421\u043f\u0430\u0441\u0438\u0431\u043e \u0437\u0430 \u043f\u043e\u043a\u0443\u043f\u043a\u0443!' : isPremium ? '\ud83d\udc51 Premium' : '\u26a1 Standard'}
+          </h4>
+        </div>
+        <button
+          onClick={onClose}
+          className="flex-shrink-0 w-6 h-6 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors"
+        >
+          <X size={12} className="text-gray-400" />
+        </button>
+        <motion.div
+          className={`absolute bottom-0 left-0 h-0.5 bg-gradient-to-r ${colors.bar}`}
+          initial={{ width: '100%' }}
+          animate={{ width: '0%' }}
+          transition={{ duration: isPaid ? 6 : 5, ease: 'linear' }}
+        />
+      </div>
+    </motion.div>
+  );
 };
 
 // --- Components ---
@@ -103,6 +156,7 @@ export const ShopPage: React.FC<any> = ({
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [creditPackages, setCreditPackages] = useState<any[]>([]);
   const [userCountry, setUserCountry] = useState<string | null>(null);
+  const [subscriptionToast, setSubscriptionToast] = useState<{ plan: string } | null>(null);
 
   // --- Effects ---
   useEffect(() => {
@@ -122,6 +176,18 @@ export const ShopPage: React.FC<any> = ({
     }
     loadCreditPackages();
   }, [isAuthenticated]);
+
+  // Показываем уведомление при возврате после успешной оплаты
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('payment') === 'success') {
+      // Убираем параметр из URL без перезагрузки
+      window.history.replaceState({}, '', window.location.pathname);
+      // Показываем тост
+      setSubscriptionToast({ plan: 'paid' });
+      setTimeout(() => setSubscriptionToast(null), 6000);
+    }
+  }, []);
 
   // --- Data Loading ---
   const loadUserInfo = async () => {
@@ -328,6 +394,58 @@ export const ShopPage: React.FC<any> = ({
         }
       }
     } catch (e) { console.error(e); }
+  };
+
+  const handleCreemCheckout = async (plan: string = 'premium') => {
+    const token = localStorage.getItem('authToken');
+    if (!token) return;
+
+    try {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/payments/creem-checkout?plan=${plan}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        console.error('[CREEM] Ошибка:', err);
+        return;
+      }
+
+      const data = await response.json();
+      if (data.checkout_url) {
+        window.location.href = data.checkout_url;
+      }
+    } catch (e) { console.error('[CREEM] Ошибка запроса:', e); }
+  };
+
+  const handleCreemActivateTest = async (plan: string) => {
+    const token = localStorage.getItem('authToken');
+    if (!token) return;
+
+    try {
+      const response = await fetch(
+        `${API_CONFIG.BASE_URL}/api/payments/creem-activate-test?plan=${plan}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+        }
+      );
+
+      const data = await response.json();
+      if (response.ok) {
+        setSubscriptionToast({ plan: data.plan });
+        setTimeout(() => setSubscriptionToast(null), 5000);
+      } else {
+        alert(`❌ Ошибка: ${data.detail || 'Неизвестная'}`);
+      }
+    } catch (e) { console.error('[CREEM ACTIVATE] Ошибка:', e); }
   };
 
   const handleCreditPayment = async (pkg: any, method: string) => {
@@ -596,6 +714,19 @@ export const ShopPage: React.FC<any> = ({
                 >
                   ADMIN TEST CRYPTO
                 </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleCreemCheckout('standard'); }}
+                  className="w-full py-2 text-xs text-emerald-500/70 hover:text-emerald-400 border border-dashed border-emerald-500/30 rounded-lg flex items-center justify-center gap-1.5"
+                >
+                  <CreditCard size={12} />
+                  Pay with Card (Creem)
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleCreemActivateTest('standard'); }}
+                  className="w-full py-2 text-xs text-emerald-400/60 hover:text-emerald-300 border border-dashed border-emerald-400/20 rounded-lg"
+                >
+                  ADMIN CREEM ACTIVATE
+                </button>
               </div>
             )}
           </motion.div>
@@ -707,6 +838,19 @@ export const ShopPage: React.FC<any> = ({
                     className="w-full py-2 text-xs text-red-400/70 hover:text-red-400 border border-dashed border-red-500/30 rounded-lg"
                   >
                     ADMIN TEST CRYPTO
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleCreemCheckout('premium'); }}
+                    className="w-full py-2 text-xs text-emerald-500/70 hover:text-emerald-400 border border-dashed border-emerald-500/30 rounded-lg flex items-center justify-center gap-1.5"
+                  >
+                    <CreditCard size={12} />
+                    Pay with Card (Creem)
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleCreemActivateTest('premium'); }}
+                    className="w-full py-2 text-xs text-emerald-400/60 hover:text-emerald-300 border border-dashed border-emerald-400/20 rounded-lg"
+                  >
+                    ADMIN CREEM ACTIVATE
                   </button>
                 </div>
               )}
@@ -820,6 +964,15 @@ export const ShopPage: React.FC<any> = ({
           }}
         />
       )}
+
+      <AnimatePresence>
+        {subscriptionToast && (
+          <SubscriptionActivatedToast
+            plan={subscriptionToast.plan}
+            onClose={() => setSubscriptionToast(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };

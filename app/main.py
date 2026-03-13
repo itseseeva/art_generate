@@ -1436,6 +1436,16 @@ except Exception as e:
     logger.error(f"Traceback: {traceback.format_exc()}")
     logger.error(f"Traceback: {traceback.format_exc()}")
 
+# Подключаем интеграцию Creem (Pay with Card)
+try:
+    from app.creem.router import router as creem_router
+    app.include_router(creem_router)
+    logger.info("[ROUTER] Creem router подключен")
+except Exception as e:
+    logger.error(f"[ERROR] Ошибка подключения роутера Creem: {e}")
+    import traceback
+    logger.error(f"Traceback: {traceback.format_exc()}")
+
 # Подключаем роутер истории чата
 try:
     try:

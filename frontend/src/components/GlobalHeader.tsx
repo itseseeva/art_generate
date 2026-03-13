@@ -765,7 +765,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
       <LeftSection>
         <MenuToggle toggle={onToggle} isOpen={isOpen} />
         <LogoImage
-          src="/candy_girls.png"
+          src="/photo_2026-03-13_11-19-52.jpg"
           alt="Logo"
           onClick={handleHome}
         />
