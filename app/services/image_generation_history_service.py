@@ -106,16 +106,29 @@ class ImageGenerationHistoryService:
                 )
                 existing_record = existing.scalars().first()
                 if existing_record:
-                    # Обновляем generation_time, если оно передано и отсутствует в записи
+                    # Обновляем generation_time и prompt если переданы новые значения
+                    updated = False
                     if generation_time is not None and existing_record.generation_time is None:
                         try:
                             existing_record.generation_time = float(generation_time) if generation_time else None
-                            await self.db.commit()
-                            await self.db.refresh(existing_record)
-                            logger.info(f"[IMAGE_HISTORY] Обновлено generation_time для существующей записи: {normalized_image_url}")
+                            updated = True
                         except (ValueError, TypeError):
                             pass
-                    logger.info(f"[IMAGE_HISTORY] Изображение с URL уже сохранено для user_id={user_id}")
+                    
+                    # КРИТИЧНО: Обновляем промпт если текущий пустой/дефолтный, а новый передан
+                    default_prompts = {"Генерация изображения", ""}
+                    current_prompt = existing_record.prompt or ""
+                    if prompt and (not existing_record.prompt or current_prompt in default_prompts):
+                        existing_record.prompt = prompt
+                        updated = True
+                        logger.info(f"[IMAGE_HISTORY] Обновлён промпт для существующей записи: {normalized_image_url}")
+                    
+                    if updated:
+                        await self.db.commit()
+                        await self.db.refresh(existing_record)
+                        logger.info(f"[IMAGE_HISTORY] Обновлена существующая запись: {normalized_image_url}")
+                    else:
+                        logger.info(f"[IMAGE_HISTORY] Изображение с URL уже сохранено для user_id={user_id}")
                     return True
             
             # Извлекаем оригинальный промпт из JSON, если он там сохранен

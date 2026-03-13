@@ -5683,7 +5683,7 @@ async def get_generation_status(
                                     .where(ChatHistory.session_id == f"task_{task_id}")
                                     .where(ChatHistory.message_type == "assistant")
                                     .values(
-                                        message_content="",
+                                        message_content=real_prompt or "",
                                         image_url=normalized_url,
                                         image_filename=filename,
                                         generation_time=generation_time
