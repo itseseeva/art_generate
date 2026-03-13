@@ -9,8 +9,8 @@ from app.utils.redis_cache import get_redis_client
 logger = logging.getLogger(__name__)
 
 # Константы моделей
-PRIMARY_MODEL = "sao10k/l3-euryale-70b"
-FALLBACK_MODEL = "deepseek/deepseek-chat-v3-0324"
+PRIMARY_MODEL = "deepseek/deepseek-chat-v3-0324"
+FALLBACK_MODEL = "sao10k/l3-euryale-70b"
 REDIS_KEY = "active_default_model"
 
 

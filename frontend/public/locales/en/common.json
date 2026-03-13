@@ -564,6 +564,7 @@
             "premiumBadge": "Premium Only",
             "premiumWarning": "Premium subscribers only!",
             "backToChat": "Back to chat",
+            "currentSelection": "Selected",
             "models": {
                 "euryale": {
                     "subtitle": "\"Master of dark fantasy and deep immersion\"",
@@ -582,7 +583,18 @@
                     "features": "Modern multimodal model with high generation speed and excellent context understanding. Optimized for natural dialogues.",
                     "style": "Balanced style with emphasis on naturalness and lively communication. Handles both light conversations and deep topics well.",
                     "forWho": "For those who value fast and quality responses. Great for dynamic dialogues and situations where reaction speed is important."
+                },
+                "mythomax": {
+                    "subtitle": "\"The roleplay legend\"",
+                    "features": "One of the best roleplay models with outstanding creativity.",
+                    "style": "High detail and richness in descriptions.",
+                    "forWho": "For experienced roleplayers who prefer non-standard plots."
                 }
+            },
+            "stats": {
+                "logic": "Logic",
+                "creative": "Creative",
+                "speed": "Speed"
             }
         }
     },

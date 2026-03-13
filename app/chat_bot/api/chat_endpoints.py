@@ -208,8 +208,8 @@ async def chat_with_character(
                 system_message_index=0
             )
             
-            # Добавляем финальное напоминание для Euryale (дополнительно к системному)
-            if model_to_use == "sao10k/l3-euryale-70b":
+            # Добавляем финальное напоминание для модели (дополнительно к системному)
+            if model_to_use == "deepseek/deepseek-chat-v3-0324":
                 if openai_messages and openai_messages[0]["role"] == "system":
                     openai_messages[0]["content"] += f"\n\nREMINDER: Write your response ONLY in {target_lang.upper()}. NO CHINESE CHARACTERS."
             
@@ -219,7 +219,7 @@ async def chat_with_character(
             messages = [
                 {
                     "role": "system",
-                    "content": system_prompt_with_limit + (f"\n\nREMINDER: Write your response ONLY in {target_lang.upper()}. NO CHINESE CHARACTERS." if model_to_use == "sao10k/l3-euryale-70b" else "")
+                    "content": system_prompt_with_limit + (f"\n\nREMINDER: Write your response ONLY in {target_lang.upper()}. NO CHINESE CHARACTERS." if model_to_use == "deepseek/deepseek-chat-v3-0324" else "")
                 },
                 {
                     "role": "user",

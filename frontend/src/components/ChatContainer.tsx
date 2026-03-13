@@ -1378,7 +1378,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
 
   const [selectedChatModel, setSelectedChatModel] = useState<string>(() => {
     const saved = localStorage.getItem('selectedChatModel');
-    return saved || 'sao10k/l3-euryale-70b';
+    return saved || 'deepseek/deepseek-chat-v3-0324';
   });
   // Функция для определения языка по умолчанию
   const getDefaultLanguage = (): 'ru' | 'en' => {

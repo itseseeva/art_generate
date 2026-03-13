@@ -275,7 +275,7 @@ def cleanup_old_voices_task(self) -> Dict[str, Any]:
 )
 def check_primary_model_availability_task(self) -> Dict[str, Any]:
     """
-    Проверяет доступность primary модели (sao10k/l3-euryale-70b) каждые 2 часа.
+    Проверяет доступность primary модели (deepseek-chat-v3-0324) каждые 2 часа.
     Если модель доступна и сейчас используется fallback - переключает обратно на primary.
     
     Returns:

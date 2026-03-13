@@ -91,22 +91,28 @@ class CharacterTranslationMiddleware(BaseHTTPMiddleware):
                             if not character:
                                 continue
 
-                            # ВСЕГДА добавляем name_ru/name_en из БД в ответ
-                            before_name_ru = char_data.get("name_ru")
-                            before_name_en = char_data.get("name_en")
-                            if character.name_ru:
-                                char_data["name_ru"] = character.name_ru
-                            if character.name_en:
-                                char_data["name_en"] = character.name_en
+                            # ВСЕГДА добавляем переведенные поля из БД в ответ
+                            for field in [
+                                "name_ru", "name_en", 
+                                "personality_ru", "personality_en", 
+                                "situation_ru", "situation_en", 
+                                "instructions_ru", "instructions_en",
+                                "style_ru", "style_en", 
+                                "appearance_ru", "appearance_en", 
+                                "location_ru", "location_en"
+                            ]:
+                                val = getattr(character, field, None)
+                                if val:
+                                    char_data[field] = val
+                                    
                             # ДИАГНОСТИКА: логируем только первых 3 персонажей чтобы не спамить
                             if char_id in [characters[0].get("id") if characters else None,
                                            characters[1].get("id") if len(characters) > 1 else None,
                                            characters[2].get("id") if len(characters) > 2 else None]:
                                 logger.info(
                                     f"[NAME_DEBUG] char_id={char_id} name='{char_data.get('name')}' "
-                                    f"db.name_ru='{character.name_ru}' db.name_en='{character.name_en}' "
-                                    f"before_ru='{before_name_ru}' before_en='{before_name_en}' "
-                                    f"after_ru='{char_data.get('name_ru')}' after_en='{char_data.get('name_en')}'"
+                                    f"db.name_ru='{character.name_ru}' db.situation_ru='{character.situation_ru and 'yes' or 'no'}' "
+                                    f"after_ru='{char_data.get('name_ru')}' after_situation='{char_data.get('situation_ru') and 'yes' or 'no'}'"
                                 )
 
                             # Проверяем нужен ли дополнительный перевод

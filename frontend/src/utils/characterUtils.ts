@@ -11,8 +11,8 @@ export const extractRolePlayingSituation = (prompt: string): string | null => {
   if (!prompt) return null;
   
   try {
-    // Ищем секцию "Role-playing Situation:" в промпте
-    const situationMatch = prompt.match(/Role-playing Situation:\s*(.*?)(?=\n\nInstructions:|$)/s);
+    // Ищем секцию "Role-playing Situation:" или русскую в промпте
+    const situationMatch = prompt.match(/(?:Role-playing Situation:|Ролевая ситуация:)\s*(.*?)(?=\n\n(?:Instructions:|Инструкции:)|$)/s);
     
     if (situationMatch && situationMatch[1]) {
       return situationMatch[1].trim();
@@ -37,25 +37,25 @@ export const extractCharacterFields = (prompt: string) => {
     const fields: Record<string, string> = {};
     
     // Извлекаем Personality and Character
-    const personalityMatch = prompt.match(/Personality and Character:\s*(.*?)(?=\n\nRole-playing Situation:|$)/s);
+    const personalityMatch = prompt.match(/(?:Personality and Character:|Характер и Личность:|Характер:|Личность:)\s*(.*?)(?=\n\n(?:Role-playing Situation:|Ролевая ситуация:)|$)/s);
     if (personalityMatch && personalityMatch[1]) {
       fields.personality = personalityMatch[1].trim();
     }
     
     // Извлекаем Role-playing Situation
-    const situationMatch = prompt.match(/Role-playing Situation:\s*(.*?)(?=\n\nInstructions:|$)/s);
+    const situationMatch = prompt.match(/(?:Role-playing Situation:|Ролевая ситуация:)\s*(.*?)(?=\n\n(?:Instructions:|Инструкции:)|$)/s);
     if (situationMatch && situationMatch[1]) {
       fields.situation = situationMatch[1].trim();
     }
     
     // Извлекаем Instructions
-    const instructionsMatch = prompt.match(/Instructions:\s*(.*?)(?=\n\nResponse Style:|$)/s);
+    const instructionsMatch = prompt.match(/(?:Instructions:|Инструкции:)\s*(.*?)(?=\n\n(?:Response Style:|Стиль ответа:)|$)/s);
     if (instructionsMatch && instructionsMatch[1]) {
       fields.instructions = instructionsMatch[1].trim();
     }
     
     // Извлекаем Response Style
-    const styleMatch = prompt.match(/Response Style:\s*(.*?)(?=\n\nIMPORTANT:|$)/s);
+    const styleMatch = prompt.match(/(?:Response Style:|Стиль ответа:)\s*(.*?)(?=\n\n(?:IMPORTANT:|ВАЖНО:)|$)/s);
     if (styleMatch && styleMatch[1]) {
       fields.style = styleMatch[1].trim();
     }

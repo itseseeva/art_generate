@@ -1,7 +1,7 @@
 """
 Сервис для взаимодействия с OpenRouter API.
 
-Все пользователи получают модель: L3 Euryale 70B (sao10k/l3-euryale-70b)
+Все пользователи получают модель: DeepSeek V3 (deepseek/deepseek-chat-v3-0324)
 При rate limit отправляется уведомление администратору в Telegram.
 """
 
@@ -217,7 +217,8 @@ class OpenRouterService:
             allowed_models = [
                 "sao10k/l3-euryale-70b",
                 "thedrummer/cydonia-24b-v4.1",
-                "deepseek/deepseek-chat-v3-0324"
+                "deepseek/deepseek-chat-v3-0324",
+                "gryphe/mythomax-l2-13b"
             ]
             if model in allowed_models:
                 model_to_use = model
@@ -501,7 +502,8 @@ class OpenRouterService:
             allowed_models = [
                 "sao10k/l3-euryale-70b",
                 "thedrummer/cydonia-24b-v4.1",
-                "deepseek/deepseek-chat-v3-0324"
+                "deepseek/deepseek-chat-v3-0324",
+                "gryphe/mythomax-l2-13b"
             ]
             if model in allowed_models:
                 model_to_use = model

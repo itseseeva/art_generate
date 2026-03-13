@@ -34,7 +34,7 @@ class ChatConfig(BaseSettings):
         description="Включить OpenRouter API"
     )
     OPENROUTER_MODEL: str = Field(
-        default="sao10k/l3-euryale-70b", 
+        default="deepseek/deepseek-chat-v3-0324", 
         description="Модель для OpenRouter API"
     )
     

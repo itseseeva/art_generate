@@ -43,17 +43,32 @@ export function useCharacterTranslation(character: Character) {
         if (field === 'tags' && character.tags) return character.tags as T;
 
         if (field === 'situation') {
-            const translated = field_ru || field_en || (character.translations?.[currentLang]?.situation);
-            if (translated) return translated as T;
+            // Строго проверяем перевод для текущего языка
+            const translatedForLang = currentLang === 'ru' 
+                ? (field_ru || character.translations?.ru?.situation) 
+                : (field_en || character.translations?.en?.situation);
+                
+            if (translatedForLang) return translatedForLang as T;
 
             const rawPrompt = character.raw?.prompt || character.raw?.full_prompt || '';
             const prompt = character.prompt || rawPrompt || character.description || '';
 
-            // Robust extraction: matches various English and Russian labels case-insensitively
-            // Supports: Role-playing Situation, Roleplay Situation, Roleplay, Situation, Scenario and Russian equivalents
-            // Also handles markdown like **Role-playing Situation** or [Roleplay]
-            const extracted = prompt.match(/(?:[\[\]*#\s]*)(?:Role-playing Situation|Roleplay Situation|Roleplay|Situation|Scenario|Ролевая ситуация|Ситуация|Сценарий)(?:[\[\]*#\s]*):\s*(.*?)(?=\n\n|\n(?:[\[\]*#\s]*)(?:Instructions|Инструкции|Personality|List|Character|Description|Appearance|Tags)|$)/is)?.[1]?.trim();
-            if (extracted) return extracted as T;
+            // Регулярки для извлечения по языкам
+            const ruMatch = prompt.match(/(?:[\[\]*#\s]*)(?:Ролевая ситуация|Ситуация|Сценарий)(?:[\[\]*#\s]*):\s*(.*?)(?=\n\n|\n(?:[\[\]*#\s]*)(?:Instructions|Инструкции|Personality|List|Character|Description|Appearance|Tags)|$)/is)?.[1]?.trim();
+            const enMatch = prompt.match(/(?:[\[\]*#\s]*)(?:Role-playing Situation|Roleplay Situation|Roleplay|Situation|Scenario)(?:[\[\]*#\s]*):\s*(.*?)(?=\n\n|\n(?:[\[\]*#\s]*)(?:Instructions|Инструкции|Personality|List|Character|Description|Appearance|Tags)|$)/is)?.[1]?.trim();
+            
+            // Пытаемся извлечь ситуацию в соответствии с текущим языком
+            if (currentLang === 'ru') {
+                if (ruMatch) return ruMatch as T;
+                // Фоллбэк на английский парсер только если нет русского перевода и паттерна
+                if (enMatch) return enMatch as T;
+                if (field_en) return field_en as T;
+            } else {
+                if (enMatch) return enMatch as T;
+                // Фоллбэк на русский парсер только если нет английского перевода и паттерна
+                if (ruMatch) return ruMatch as T;
+                if (field_ru) return field_ru as T;
+            }
 
             const name = character.display_name || character.name || '';
             const desc = character.description || '';
