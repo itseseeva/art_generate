@@ -45,6 +45,7 @@ import { useIsMobile } from './hooks/useIsMobile';
 import { API_CONFIG } from './config/api';
 import { getFingerprintId } from './utils/fingerprint';
 import { BoosterOfferModal } from './components/BoosterOfferModal';
+import { AnimationsTestPage } from './components/AnimationsTestPage';
 
 const AppContainer = styled.div<{ $isMobile?: boolean }>`
   width: 100vw;
@@ -640,6 +641,7 @@ function App() {
         />
       } />
       <Route path="tags/:tagSlug" element={<TagsPage slug={selectedTagId || ''} onBackToMain={handleBackToMain} onCharacterSelect={handleCharacterSelect} setTagName={setTagName} onShop={handleShop} onProfile={handleProfile} />} />
+      <Route path="test-animations" element={<AnimationsTestPage />} />
     </>
   );
 

@@ -242,7 +242,11 @@ const CreateCharacterCardWrapper = styled.div`
   cursor: pointer;
 
   @media (max-width: 768px) {
-    /* Удаляем специфичные стили для мобильных, чтобы карточка была такой же высоты как остальные */
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    height: auto;
+    aspect-ratio: 231 / 339;
   }
 
   @media (min-width: 769px) {

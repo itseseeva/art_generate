@@ -72,7 +72,7 @@ const LogoImage = styled.img`
   }
 
   @media (max-width: 768px) {
-    left: 75px;
+    left: calc(75px + 15%);
     height: 36px;
     min-width: 130px;
     transform: translateY(5%);
@@ -765,7 +765,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
       <LeftSection>
         <MenuToggle toggle={onToggle} isOpen={isOpen} />
         <LogoImage
-          src="/photo_2026-03-13_11-19-52.jpg"
+          src="/photo_2026-03-13_11-19-52-removebg-preview.png"
           alt="Logo"
           onClick={handleHome}
         />

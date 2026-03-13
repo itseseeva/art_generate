@@ -42,6 +42,14 @@ const CardContainer = styled.div<{ $isHovered?: boolean }>`
     box-shadow: ${theme.colors.shadow.glow}, 0 0 20px rgba(139, 92, 246, 0.4);
     border-color: rgba(139, 92, 246, 0.5);
   `}
+
+  @media (max-width: 768px) {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    height: auto;
+    aspect-ratio: 231 / 339;
+  }
 `;
 
 
@@ -518,6 +526,75 @@ position: relative;
   &:active {
   transform: scale(0.95);
 }
+`;
+
+const MobileRoleplayButton = styled.button`
+  display: none;
+  @media (max-width: 768px) {
+    display: flex;
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    padding: 2px 6px;
+    align-items: center;
+    gap: 4px;
+    color: #e9d5ff; /* light violet, like CreatorLink */
+    z-index: 1010;
+    font-size: 10px;
+    font-weight: 700;
+    pointer-events: auto;
+    font-family: 'Inter', -apple-system, sans-serif;
+    transition: all 0.2s ease;
+    text-shadow: 0 1px 8px rgba(0, 0, 0, 1);
+    white-space: nowrap;
+    
+    &:active {
+      transform: translateX(-50%) scale(0.95);
+    }
+
+    svg {
+      width: 10px;
+      height: 10px;
+      stroke-width: 2px;
+      color: #e9d5ff;
+    }
+  }
+`;
+
+const MobileRoleplayModal = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  padding: ${theme.spacing.lg};
+`;
+
+const MobileRoleplayModalContent = styled.div`
+  background: rgba(15, 15, 25, 0.95);
+  border-radius: 20px;
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  padding: ${theme.spacing.xl};
+  width: 90vw;
+  max-width: 400px;
+  max-height: 80vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6), 0 0 30px rgba(139, 92, 246, 0.2), inset 0 1px 0 rgba(255,255,255,0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 `;
 
 const PersonalityModal = styled.div`
@@ -1651,64 +1728,47 @@ interface CharacterCardProps {
 }
 
 // ═══════════════════════════════════════════════════════════
-// ТРИ SLAM-АНИМАЦИИ — плавное врезание с лёгким затуханием
+// NEW ANIMATION SEQUENCE: 3D Stack -> 3D Flip -> Shrink & Spin
 // ═══════════════════════════════════════════════════════════
 
-// ── Анимация 1: SLAM FROM RIGHT — прилетает справа → влево ──
-const slamRightVariants = {
-  initial: { x: '110%', opacity: 0 },
-  animate: {
-    x: ['110%', '-2.5%', '1%', '0%'],
-    opacity: [0, 1, 1, 1],
-    scaleX: [1.06, 0.99, 1.01, 1.0],
-  },
-  exit: { x: '-110%', opacity: 0 },
+const stack3dVariants = {
+  initial: { opacity: 0, y: 50, scale: 0.8, rotateX: -20 },
+  animate: { opacity: 1, y: 0, scale: 1, rotateX: 0 },
+  exit: { opacity: 0, y: -50, scale: 1.05, rotateX: 20 },
 };
-const slamRightTransition = {
-  duration: 0.62,
-  ease: 'easeOut' as const,
-  times: [0, 0.55, 0.78, 1],
-  exit: { duration: 0.22, ease: 'easeIn' as const },
+
+const stack3dTransition = {
+  duration: 0.8,
+  ease: [0.16, 1, 0.3, 1] as [number, number, number, number],
+  exit: { duration: 0.5, ease: 'easeIn' as const },
 } as import('motion/react').Transition;
 
-// ── Анимация 2: SLAM FROM LEFT — прилетает слева → вправо ──
-const slamLeftVariants = {
-  initial: { x: '-110%', opacity: 0 },
-  animate: {
-    x: ['-110%', '2.5%', '-1%', '0%'],
-    opacity: [0, 1, 1, 1],
-    scaleX: [1.06, 0.99, 1.01, 1.0],
-  },
-  exit: { x: '110%', opacity: 0 },
+const flip3dVariants = {
+  initial: { opacity: 0, rotateY: -90, scale: 0.9 },
+  animate: { opacity: 1, rotateY: 0, scale: 1 },
+  exit: { opacity: 0, rotateY: 90, scale: 0.9 },
 };
-const slamLeftTransition = {
-  duration: 0.62,
-  ease: 'easeOut' as const,
-  times: [0, 0.55, 0.78, 1],
-  exit: { duration: 0.22, ease: 'easeIn' as const },
+
+const flip3dTransition = {
+  duration: 0.7,
+  ease: 'backOut' as const,
 } as import('motion/react').Transition;
 
-// ── Анимация 3: SLAM FROM TOP — прилетает сверху → вниз ──
-const slamTopVariants = {
-  initial: { y: '-110%', opacity: 0 },
-  animate: {
-    y: ['-110%', '2.5%', '-1%', '0%'],
-    opacity: [0, 1, 1, 1],
-    scaleY: [1.06, 0.99, 1.01, 1.0],
-  },
-  exit: { y: '110%', opacity: 0 },
+const shrinkSpinVariants = {
+  initial: { scale: 1.5, rotate: 10, opacity: 0 },
+  animate: { scale: 1, rotate: 0, opacity: 1 },
+  exit: { scale: 0.5, rotate: -10, opacity: 0 },
 };
-const slamTopTransition = {
-  duration: 0.62,
-  ease: 'easeOut' as const,
-  times: [0, 0.55, 0.78, 1],
-  exit: { duration: 0.22, ease: 'easeIn' as const },
+
+const shrinkSpinTransition = {
+  duration: 0.6,
+  ease: 'backOut' as const,
 } as import('motion/react').Transition;
 
 const slideAnimationConfigs = [
-  { variants: slamRightVariants, transition: slamRightTransition, perspective: false },
-  { variants: slamLeftVariants, transition: slamLeftTransition, perspective: false },
-  { variants: slamTopVariants, transition: slamTopTransition, perspective: false },
+  { variants: stack3dVariants, transition: stack3dTransition, perspective: true },
+  { variants: flip3dVariants, transition: flip3dTransition, perspective: true },
+  { variants: shrinkSpinVariants, transition: shrinkSpinTransition, perspective: false },
 ];
 
 // Компонент слайд-шоу
@@ -1907,6 +1967,7 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
   const [likesCount, setLikesCount] = useState<number>(character.likes ?? 0);
   const [dislikesCount, setDislikesCount] = useState<number>(character.dislikes ?? 0);
   const [userRating, setUserRating] = useState<'like' | 'dislike' | null>(null);
+  const [isMobileRoleplayOpen, setIsMobileRoleplayOpen] = useState(false);
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -2736,6 +2797,10 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
 
             $isHovered={isHovered}
           >
+            <MobileRoleplayButton onClick={(e) => { e.stopPropagation(); setIsMobileRoleplayOpen(true); }}>
+              <FiMessageSquare /> {t('characterCard.roleplaySituation', 'Ролевая ситуация')}
+            </MobileRoleplayButton>
+
             <CardContent>
               <PhotoContainer $isHovered={isHovered}>
                 {character.photos && character.photos.length > 0 ? (
@@ -2925,7 +2990,6 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
                 </VerificationBadge>
               )}
 
-              {/* Favorite Button */}
               <FavoriteButton
                 $isFavorite={isFavorite}
                 onClick={toggleFavorite}
@@ -3139,6 +3203,25 @@ export const CharacterCard: React.FC<CharacterCardProps> = ({
           document.body
         )
       }
+
+      {isMobileRoleplayOpen && createPortal(
+        <MobileRoleplayModal onClick={(e) => {
+          if (e.target === e.currentTarget) setIsMobileRoleplayOpen(false);
+        }}>
+          <MobileRoleplayModalContent onClick={(e) => e.stopPropagation()}>
+            <PersonalityModalHeader>
+              <PersonalityModalTitle>{t('characterCard.roleplaySituation', 'Ролевая ситуация')}</PersonalityModalTitle>
+              <PersonalityModalCloseButton onClick={() => setIsMobileRoleplayOpen(false)}>
+                <CloseIcon />
+              </PersonalityModalCloseButton>
+            </PersonalityModalHeader>
+            <RoleplayText style={{ WebkitLineClamp: 'unset', overflow: 'visible', fontSize: '0.95rem', lineHeight: '1.6', color: '#f3f4f6' }}>
+              {displaySituation || t('characterCard.noSituation')}
+            </RoleplayText>
+          </MobileRoleplayModalContent>
+        </MobileRoleplayModal>,
+        document.body
+      )}
 
       <PromptGlassModal
         isOpen={isPromptModalOpen && !!modalPhotoUrl}

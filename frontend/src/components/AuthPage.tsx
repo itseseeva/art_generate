@@ -53,6 +53,19 @@ const LeftSection = styled.div`
   }
 `;
 
+const LogoImg = styled.img`
+  width: 280px;
+  max-width: 90%;
+  margin-bottom: 24px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 24px rgba(168, 85, 247, 0.35));
+
+  @media (max-width: 968px) {
+    width: 180px;
+    margin-bottom: 16px;
+  }
+`;
+
 const Subtitle = styled.p`
   font-size: 18px;
   color: rgba(255, 255, 255, 0.7);
@@ -417,6 +430,7 @@ const AuthPage: React.FC<AuthPageProps> = ({ onLogin, onGoogleLogin, onSignUp, o
 
       <RightSection>
         <FormContainer>
+          <LogoImg src="/photo_2026-03-13_11-19-52-removebg-preview.png" alt="Candy Girls" style={{ display: 'block', margin: '0 auto 16px' }} />
           <FormTitle dangerouslySetInnerHTML={{ __html: t('auth.authTitle') }} />
           <FormSubtitle>{t('auth.authSubtitle')}</FormSubtitle>
 
