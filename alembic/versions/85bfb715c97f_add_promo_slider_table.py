@@ -32,19 +32,28 @@ def upgrade() -> None:
     if 'promo_slider_items' not in tables:
         op.create_table('promo_slider_items',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column('image_url', sa.String(), nullable=False),
-        sa.Column('title_ru', sa.String(), nullable=False),
-        sa.Column('title_en', sa.String(), nullable=False),
+        sa.Column('image_url', sa.String(), nullable=True),
+        sa.Column('image_url_en', sa.String(), nullable=True),
+        sa.Column('title_ru', sa.String(), nullable=True),
+        sa.Column('title_en', sa.String(), nullable=True),
         sa.Column('subtitle_ru', sa.String(), nullable=True),
         sa.Column('subtitle_en', sa.String(), nullable=True),
-        sa.Column('button_text_ru', sa.String(), nullable=False),
-        sa.Column('button_text_en', sa.String(), nullable=False),
-        sa.Column('target_url', sa.String(), nullable=False),
-        sa.Column('is_active', sa.Boolean(), nullable=False),
-        sa.Column('order', sa.Integer(), nullable=False),
-        sa.Column('created_at', sa.DateTime(), nullable=True),
+        sa.Column('button_text_ru', sa.String(), nullable=True, server_default='ПОЛУЧИТЬ СКИДКУ'),
+        sa.Column('button_text_en', sa.String(), nullable=True, server_default='GET DISCOUNT'),
+        sa.Column('target_url', sa.String(), nullable=True, server_default='/#'),
+        sa.Column('is_active', sa.Boolean(), nullable=False, server_default='true'),
+        sa.Column('show_timer', sa.Boolean(), nullable=False, server_default='false'),
+        sa.Column('order', sa.Integer(), nullable=False, server_default='0'),
+        sa.Column('created_at', sa.DateTime(), nullable=True, server_default=sa.func.now()),
         sa.PrimaryKeyConstraint('id')
         )
+    else:
+        # Если таблица уже создана частично, проверяем наличие новых колонок
+        columns = [col['name'] for col in inspector.get_columns('promo_slider_items')]
+        if 'image_url_en' not in columns:
+            op.add_column('promo_slider_items', sa.Column('image_url_en', sa.String(), nullable=True))
+        if 'show_timer' not in columns:
+            op.add_column('promo_slider_items', sa.Column('show_timer', sa.Boolean(), nullable=False, server_default='false'))
     
     # 2. Обработка колонки slug в characters
     columns = [col['name'] for col in inspector.get_columns('characters')]
