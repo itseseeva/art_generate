@@ -36,7 +36,16 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
-    op.drop_index(op.f('ix_characters_slug'), table_name='characters')
+    
+    # Безопасное удаление индекса (проверка на существование)
+    from sqlalchemy import inspect
+    conn = op.get_bind()
+    inspector = inspect(conn)
+    indexes = inspector.get_indexes('characters')
+    index_names = [idx['name'] for idx in indexes]
+    if 'ix_characters_slug' in index_names:
+        op.drop_index('ix_characters_slug', table_name='characters')
+    
     op.create_index(op.f('ix_characters_slug'), 'characters', ['slug'], unique=True)
     # ### end Alembic commands ###
 
