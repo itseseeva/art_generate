@@ -824,6 +824,8 @@ interface UserInfo {
     subscription_type?: string;
   };
   subscription_type?: string;
+  has_welcome_discount?: boolean;
+  welcome_discount_used?: boolean;
 }
 
 interface PaidAlbumStatus {
@@ -2024,7 +2026,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
           email: userData.email || null,
           is_admin: userData.is_admin || false,
           subscription: userData.subscription || undefined,
-          subscription_type: userData.subscription_type || userData.subscription?.subscription_type || undefined
+          subscription_type: userData.subscription_type || userData.subscription?.subscription_type || undefined,
+          has_welcome_discount: userData.has_welcome_discount,
+          welcome_discount_used: userData.welcome_discount_used
         };
         setUserInfo(info);
         setIsAuthenticated(true);
@@ -5318,6 +5322,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({
         characterId={currentCharacter?.id ? String(currentCharacter.id) : currentCharacter?.name || ''}
         userId={userInfo?.id}
         isAdmin={userInfo?.is_admin}
+        userInfo={userInfo}
         onShop={() => {
           const currentLang = i18n.language?.split('-')[0] || 'ru';
           navigate(`/${currentLang}/shop`);

@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     FiPlusCircle, FiEdit, FiClock, FiHeart, FiGrid, FiMessageSquare,
-    FiAlertTriangle, FiUser, FiLogOut, FiBarChart2
+    FiAlertTriangle, FiUser, FiLogOut, FiBarChart2, FiVideo
 } from 'react-icons/fi';
 import { Crown } from 'lucide-react';
 import { theme } from '../theme';
@@ -26,6 +26,7 @@ interface StaggeredSidebarProps {
     onBugReport?: () => void;
     onProfile?: () => void;
     onShop?: () => void;
+    onAnimatePhoto?: () => void;
     isAuthenticated?: boolean;
     isAdmin?: boolean;
     contentMode?: 'safe' | 'nsfw';
@@ -213,6 +214,7 @@ export const StaggeredSidebar: React.FC<StaggeredSidebarProps> = ({
     onBugReport,
     onProfile,
     onShop,
+    onAnimatePhoto,
     isAuthenticated = false,
     isAdmin = false,
     contentMode = 'safe',
@@ -281,6 +283,7 @@ export const StaggeredSidebar: React.FC<StaggeredSidebarProps> = ({
         { icon: <FiClock />, label: t('sidebar.history'), onClick: onHistory },
         { icon: <FiHeart />, label: t('sidebar.favorites'), onClick: onFavorites },
         { icon: <FiGrid />, label: t('sidebar.myCharacters'), onClick: onMyCharacters },
+        { icon: <FiVideo />, label: t('sidebar.animatePhoto'), onClick: onAnimatePhoto },
         ...(isAuthenticated && onMessages ? [{
             icon: <FiMessageSquare />,
             label: t('sidebar.messages'),
@@ -288,7 +291,7 @@ export const StaggeredSidebar: React.FC<StaggeredSidebarProps> = ({
             badge: unreadMessagesCount > 0 ? unreadMessagesCount : undefined
         }] : []),
         { icon: <FiAlertTriangle />, label: t('sidebar.bugReport'), onClick: onBugReport },
-        ...(isAuthenticated && isAdmin ? [{
+        ...(isAuthenticated && isAdmin === true ? [{
             icon: <FiBarChart2 />,
             label: t('nav.adminLogs'),
             onClick: () => window.dispatchEvent(new CustomEvent('navigate-to-admin-logs'))

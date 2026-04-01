@@ -5,11 +5,14 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { theme } from '../theme';
 import { authManager } from '../utils/auth';
-import { ShoppingBag, User, Coins, DollarSign, LogOut, X, ClipboardList, CheckCircle, Crown, Home } from 'lucide-react';
+import { ShoppingBag, User, Coins, DollarSign, LogOut, X, ClipboardList, CheckCircle, Crown, Home, Gift, Zap } from 'lucide-react';
 import { generationTracker } from '../utils/generationTracker';
 import { SearchBar } from './SearchBar';
 import { MenuToggle } from './ui/MenuToggle';
 import { getMediaUrl } from '../config/api';
+
+
+
 
 
 const HeaderContainer = styled.div`
@@ -72,10 +75,7 @@ const LogoImage = styled.img`
   }
 
   @media (max-width: 768px) {
-    left: calc(75px + 15%);
-    height: 36px;
-    min-width: 130px;
-    transform: translateY(5%);
+    display: none;
   }
 `;
 
@@ -598,6 +598,9 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
     characterName?: string;
     characterId?: string | number;
   } | null>(null);
+
+
+
   // Проверка авторизации и обновление баланса
   useEffect(() => {
     let isMounted = true;
@@ -765,7 +768,7 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
       <LeftSection>
         <MenuToggle toggle={onToggle} isOpen={isOpen} />
         <LogoImage
-          src="/photo_2026-03-13_11-19-52-removebg-preview.png"
+          src="/photo_2026-03-30_22-43-31__2_-removebg-preview.png"
           alt="Logo"
           onClick={handleHome}
         />
@@ -795,18 +798,38 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
         </NotificationContainer>
       )}
 
+
+
+      {/* Show old promo only on non-main pages if desired, but user asked to replace it, 
+          so we only show it if promoVisible is true AND it's NOT the main page.
+          Actually, let's just keep it hidden on MainPage where Slider is. */}
+
       <RightSection>
         <SearchBar />
         <HomeButton onClick={handleHome} title={t('common.home')}>
           <Home size={20} />
         </HomeButton>
-        {isAuthenticated && userInfo?.is_admin && (
-          <ShopButton
-            onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-admin-logs'))}
-            title={t('nav.adminLogs')}
-          >
-            <ClipboardList size={20} />
-          </ShopButton>
+        {isAuthenticated && userInfo?.is_admin === true && (
+          <>
+            <ShopButton
+              onClick={() => window.dispatchEvent(new Event('navigate-to-admin-slider'))}
+              title={t('nav.adminSlider', 'Управление слайдером')}
+            >
+              <Zap size={20} />
+            </ShopButton>
+            <ShopButton
+              onClick={() => window.dispatchEvent(new Event('promo_admin_reopen'))}
+              title={t('promoBar.showBanner')}
+            >
+              <Gift size={20} />
+            </ShopButton>
+            <ShopButton
+              onClick={() => window.dispatchEvent(new CustomEvent('navigate-to-admin-logs'))}
+              title={t('nav.adminLogs')}
+            >
+              <ClipboardList size={20} />
+            </ShopButton>
+          </>
         )}
         {isAuthenticated && (
           <AnimatedBorderButton

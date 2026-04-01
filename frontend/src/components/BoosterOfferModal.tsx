@@ -409,6 +409,17 @@ const ButtonPrice = styled.span`
   font-weight: 800;
   color: #fde047;
   text-shadow: 0 0 10px rgba(253, 224, 71, 0.4);
+  display: flex;
+  align-items: center;
+`;
+
+const StrikethroughPrice = styled.span`
+  font-size: 0.95rem;
+  text-decoration: line-through;
+  color: rgba(255, 255, 255, 0.5);
+  margin-right: 8px;
+  font-weight: 600;
+  text-shadow: none;
 `;
 
 const PayButton = styled.button`
@@ -534,6 +545,7 @@ interface BoosterOfferModalProps {
   /** Является ли пользователь администратором */
   isAdmin?: boolean;
   onShop?: () => void;
+  userInfo?: any;
 }
 
 const OFFER_DURATION = 30 * 60; // 30 минут
@@ -547,7 +559,8 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
   characterId,
   userId,
   isAdmin,
-  onShop
+  onShop,
+  userInfo
 }) => {
   const navigate = useNavigate();
   const { i18n } = useTranslation();
@@ -560,12 +573,16 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
   const isAlbumAccess = variant === 'album_access';
   const isAlbumAdd = variant === 'album_add';
 
+  const hasWelcomeDiscount = !!userInfo?.has_welcome_discount;
+  const welcomeDiscountUsed = !!userInfo?.welcome_discount_used;
+  const promoActive = hasWelcomeDiscount && !welcomeDiscountUsed;
+
   const exchangeRate = 77;
   const formatPrice = (rubles: number) => {
     if (currentLang === 'en') {
-      return `$${(rubles / exchangeRate).toFixed(2)}`;
+      return `$${Math.round(rubles / exchangeRate)}`;
     }
-    return `${rubles}₽`;
+    return `${Math.round(rubles)}₽`;
   };
 
   // ... (useEffect omitted, implied unchanged if not targeting it)
@@ -633,16 +650,15 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
 
       }
 
-      const paymentData = {
-        amount: currentLang === 'en' ? 77 : 69,
-        description: 'Бустер: 30 сообщений + 10 фото + 10 голосовых',
-        payment_type: 'booster',
-        payment_method: 'sbp',
-        character_id: characterId || undefined
-      };
+      // Базовая сумма бустера
+      const boosterBaseRub = 69;
+      // Применяем приветственную скидку 20% если активна
+      const boosterFinalRub = promoActive ? Math.round(boosterBaseRub * 0.8) : boosterBaseRub;
 
       let response;
       if (currentLang === 'en') {
+        // Для EN — отправляем в USD
+        const boosterAmountUsd = Math.round(boosterFinalRub / exchangeRate) || 1;
         response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/nowpayments/create_payment/`, {
           method: 'POST',
           headers: {
@@ -650,10 +666,11 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
             'Authorization': `Bearer ${token}`
           },
           body: JSON.stringify({
-            amount: paymentData.amount,
-            description: paymentData.description,
-            payment_type: paymentData.payment_type,
-            character_id: paymentData.character_id
+            amount: boosterAmountUsd,
+            currency: 'USD',
+            description: 'Booster: 30 messages + 10 photos + 10 voice',
+            payment_type: 'booster',
+            character_id: characterId || undefined
           })
         });
       } else {
@@ -663,7 +680,13 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify(paymentData)
+          body: JSON.stringify({
+            amount: boosterFinalRub,
+            description: 'Бустер: 30 сообщений + 10 фото + 10 голосовых',
+            payment_type: 'booster',
+            payment_method: 'sbp',
+            character_id: characterId || undefined
+          })
         });
       }
 
@@ -754,17 +777,15 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
         return;
       }
 
-      const paymentData = {
-        amount: 449,
-        description: 'Оплата подписки STANDARD на 30 дней',
-        plan: 'standard',
-        payment_type: 'subscription',
-        payment_method: 'sbp',
-        character_id: characterId || undefined
-      };
+      // Базовая сумма Standard подписки
+      const standardBaseRub = 449;
+      // Применяем приветственную скидку 20% если активна
+      const standardFinalRub = promoActive ? Math.round(standardBaseRub * 0.8) : standardBaseRub;
 
       let response;
       if (currentLang === 'en') {
+        // Для EN — отправляем в USD
+        const standardAmountUsd = Math.round(standardFinalRub / exchangeRate) || 1;
         response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/nowpayments/create_payment/`, {
           method: 'POST',
           headers: {
@@ -772,11 +793,13 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
             'Authorization': `Bearer ${token}`
           },
           body: JSON.stringify({
-            amount: paymentData.amount,
-            description: paymentData.description,
-            plan: paymentData.plan,
-            payment_type: paymentData.payment_type,
-            character_id: paymentData.character_id
+            amount: standardAmountUsd,
+            currency: 'USD',
+            description: 'STANDARD subscription for 30 days',
+            plan: 'standard',
+            months: 1,
+            payment_type: 'subscription',
+            character_id: characterId || undefined
           })
         });
       } else {
@@ -786,7 +809,15 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
           },
-          body: JSON.stringify(paymentData)
+          body: JSON.stringify({
+            amount: standardFinalRub,
+            description: 'Оплата подписки STANDARD на 30 дней',
+            plan: 'standard',
+            months: 1,
+            payment_type: 'subscription',
+            payment_method: 'sbp',
+            character_id: characterId || undefined
+          })
         });
       }
 
@@ -937,13 +968,29 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
                       {currentLang === 'en' ? (
                         <>
                           <span style={{ fontSize: '1.4rem', marginRight: '4px' }}>💰</span>
-                          <ButtonPrice>Crypto {formatPrice(77)}</ButtonPrice>
+                          <ButtonPrice>
+                            {promoActive && <StrikethroughPrice>Crypto {formatPrice(77)}</StrikethroughPrice>}
+                            Crypto {formatPrice(promoActive ? Math.round(77 * 0.8) : 77)}
+                          </ButtonPrice>
                         </>
                       ) : (
                         <>
                           <SbpLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
-                          <ButtonPrice>69 ₽</ButtonPrice>
+                          <ButtonPrice>
+                            {promoActive && <StrikethroughPrice>69 ₽</StrikethroughPrice>}
+                            {promoActive ? Math.round(69 * 0.8) : 69} ₽
+                          </ButtonPrice>
                         </>
+                      )}
+                      {promoActive && (
+                        <span style={{
+                          fontSize: '0.7rem',
+                          background: 'rgba(168, 85, 247, 0.2)',
+                          color: '#e879f9',
+                          padding: '2px 6px',
+                          borderRadius: '10px',
+                          marginLeft: '6px'
+                        }}>-20%</span>
                       )}
                     </ButtonContent>
                   )}
@@ -1023,13 +1070,29 @@ export const BoosterOfferModal: React.FC<BoosterOfferModalProps> = ({
                     {currentLang === 'en' ? (
                       <>
                         <span style={{ fontSize: '1.4rem', marginRight: '4px' }}>💰</span>
-                        <ButtonPrice>Crypto {formatPrice(449)}</ButtonPrice>
+                        <ButtonPrice>
+                          {promoActive && <StrikethroughPrice>Crypto {formatPrice(449)}</StrikethroughPrice>}
+                          Crypto {formatPrice(promoActive ? Math.round(449 * 0.8) : 449)}
+                        </ButtonPrice>
                       </>
                     ) : (
                       <>
                         <SbpLogo src="/payment_images/pay_sbp.png?v=15" alt="СБП" />
-                        <ButtonPrice>449 ₽</ButtonPrice>
+                        <ButtonPrice>
+                          {promoActive && <StrikethroughPrice>449 ₽</StrikethroughPrice>}
+                          {promoActive ? Math.round(449 * 0.8) : 449} ₽
+                        </ButtonPrice>
                       </>
+                    )}
+                    {promoActive && (
+                      <span style={{
+                        fontSize: '0.7rem',
+                        background: 'rgba(168, 85, 247, 0.2)',
+                        color: '#e879f9',
+                        padding: '2px 6px',
+                        borderRadius: '10px',
+                        marginLeft: '6px'
+                      }}>-20%</span>
                     )}
                   </ButtonContent>
                 </PayButton>

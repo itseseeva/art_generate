@@ -88,10 +88,6 @@ class OpenRouterService:
         self.model = chat_config.OPENROUTER_MODEL
         self._session: Optional[aiohttp.ClientSession] = None
         
-        # Прокси отключен для текстовой модели
-        self.proxy = None
-        logger.info("[OPENROUTER] Proxy disabled for text model")
-        
         if not self.api_key:
             logger.warning("[OPENROUTER] OPENROUTER_KEY not set in env vars")
         
@@ -115,7 +111,7 @@ class OpenRouterService:
             self._session = aiohttp.ClientSession(
                 timeout=timeout,
                 connector=connector,
-                trust_env=False  # Отключаем автоматическое использование HTTP_PROXY/HTTPS_PROXY
+                trust_env=True  # Включаем поддержку системного прокси (полезно при VPN на локалке)
             )
         return self._session
     
@@ -143,11 +139,9 @@ class OpenRouterService:
                 "Content-Type": "application/json"
             }
             
-            # Простой запрос для проверки подключения
             async with session.get(
                 f"{self.base_url}/models",
-                headers=headers,
-                proxy=self.proxy if self.proxy else None
+                headers=headers
             ) as response:
                 if response.status == 200:
                     logger.info("[OPENROUTER] Connection established successfully")
@@ -218,7 +212,8 @@ class OpenRouterService:
                 "sao10k/l3-euryale-70b",
                 "thedrummer/cydonia-24b-v4.1",
                 "deepseek/deepseek-chat-v3-0324",
-                "gryphe/mythomax-l2-13b"
+                "gryphe/mythomax-l2-13b",
+                "anthropic/claude-sonnet-4.6"
             ]
             if model in allowed_models:
                 model_to_use = model
@@ -344,8 +339,7 @@ class OpenRouterService:
             async with session.post(
                 f"{self.base_url}/chat/completions",
                 headers=headers,
-                json=payload,
-                proxy=self.proxy if self.proxy else None
+                json=payload
             ) as response:
                 if response.status == 200:
                     result = await response.json()
@@ -391,7 +385,6 @@ class OpenRouterService:
                     
         except aiohttp.ClientProxyConnectionError as e:
             logger.error(f"[OPENROUTER] Proxy connection error: {e}")
-            logger.error(f"[OPENROUTER] Proxy used: {self.proxy}")
             return "__CONNECTION_ERROR__"
         except aiohttp.ClientError as e:
             error_str = str(e).lower()
@@ -503,7 +496,8 @@ class OpenRouterService:
                 "sao10k/l3-euryale-70b",
                 "thedrummer/cydonia-24b-v4.1",
                 "deepseek/deepseek-chat-v3-0324",
-                "gryphe/mythomax-l2-13b"
+                "gryphe/mythomax-l2-13b",
+                "anthropic/claude-sonnet-4.6"
             ]
             if model in allowed_models:
                 model_to_use = model
@@ -627,8 +621,7 @@ class OpenRouterService:
             async with session.post(
                 f"{self.base_url}/chat/completions",
                 headers=headers,
-                json=payload,
-                proxy=self.proxy if self.proxy else None
+                json=payload
             ) as response:
                 if response.status != 200:
                     error_text = await response.text()
@@ -783,7 +776,6 @@ class OpenRouterService:
                 
         except aiohttp.ClientProxyConnectionError as e:
             logger.error(f"[OPENROUTER STREAM] Proxy connection error: {e}")
-            logger.error(f"[OPENROUTER STREAM] Proxy used: {self.proxy}")
             yield json.dumps({"error": "__CONNECTION_ERROR__"})
         except aiohttp.ClientError as e:
             error_str = str(e).lower()

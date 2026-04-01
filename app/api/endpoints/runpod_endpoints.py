@@ -10,15 +10,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database.db_depends import get_db
 from app.tasks.runpod_tasks import (
-    generate_image_runpod_task,
     generate_image_batch_task,
-    test_runpod_connection_task
+    test_runpod_connection_task,
+    animate_video_runpod_task
 )
 from app.auth.dependencies import get_current_user_optional
 from app.models.user import Users
 
 
-router = APIRouter(prefix="/runpod", tags=["RunPod Generation"])
+router = APIRouter(tags=["RunPod Generation"])
 
 
 # ========================================
@@ -38,7 +38,6 @@ class GenerationRequest(BaseModel):
     negative_prompt: Optional[str] = Field(None, description="Негативный промпт")
     use_enhanced_prompts: bool = Field(True, description="Добавлять ли дефолтные промпты")
 
-
 class BatchGenerationRequest(BaseModel):
     """Запрос на пакетную генерацию"""
     prompts: list[str] = Field(..., description="Список промптов", min_items=1, max_items=10)
@@ -50,6 +49,19 @@ class BatchGenerationRequest(BaseModel):
     scheduler: Optional[str] = None
     negative_prompt: Optional[str] = None
     use_enhanced_prompts: bool = True
+
+
+class AnimationRequest(BaseModel):
+    """Запрос на анимацию фото (видео-генерация)"""
+    image: str = Field(..., description="Base64 изображения")
+    prompt: str = Field(..., description="Промпт для анимации")
+    num_frames: Optional[int] = Field(81, description="Кол-во кадров (81 ≈ 5с)")
+    width: Optional[int] = Field(832, ge=256, le=1280)
+    height: Optional[int] = Field(480, ge=256, le=1280)
+    fps: Optional[int] = Field(16)
+    steps: Optional[int] = Field(20)
+    guidance: Optional[float] = Field(5.0)
+    seed: Optional[int] = None
 
 
 class TaskResponse(BaseModel):
@@ -183,6 +195,49 @@ async def start_batch_generation(
         
     except Exception as e:
         logger.error(f"[RUNPOD API] Ошибка пакетной генерации: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/animate", response_model=TaskResponse)
+async def start_video_animation(
+    request: AnimationRequest,
+    current_user: Optional[Users] = Depends(get_current_user_optional)
+):
+    """
+    Запускает анимацию фото через RunPod Wan v2.1.
+    """
+    try:
+        logger.info(f"[RUNPOD API] Запрос на анимацию от {current_user.id if current_user else 'guest'}")
+        
+        # Определяем приоритет
+        task_priority = 5
+        if current_user:
+            # Можно добавить логику приоритетов как в /generate
+            pass
+
+        task = animate_video_runpod_task.apply_async(
+            kwargs={
+                "image_base64": request.image,
+                "prompt": request.prompt,
+                "num_frames": request.num_frames,
+                "width": request.width,
+                "height": request.height,
+                "fps": request.fps,
+                "num_inference_steps": request.steps,
+                "guidance_scale": request.guidance,
+                "seed": request.seed
+            },
+            priority=task_priority
+        )
+        
+        return TaskResponse(
+            task_id=task.id,
+            status="pending",
+            message="Video animation started. Use /status/{task_id} to check progress."
+        )
+        
+    except Exception as e:
+        logger.error(f"[RUNPOD API] Ошибка запуска анимации: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

@@ -69,11 +69,26 @@ async def create_kassa_payment(
 
 	# Генерируем уникальный ключ идемпотентности
 	idempotence_key = f"yookassa-{current_user.id}-{payload.payment_type}-{uuid.uuid4()}"
-	
+
+	# Фронт уже передаёт итоговую сумму со скидкой — используем как есть
+	final_amount = round(payload.amount, 2)
+
+	# Определяем, была ли применена приветственная скидка (для корректного снятия флага после оплаты)
+	welcome_discount_applied = (
+		getattr(current_user, 'has_welcome_discount', False)
+		and not getattr(current_user, 'welcome_discount_used', True)
+	)
+	if welcome_discount_applied:
+		logger.info(
+			f"[PROMO] Welcome discount was active for user {current_user.id}, "
+			f"amount={final_amount} RUB (pre-discounted by frontend)"
+		)
+
 	# Формируем metadata для отслеживания платежа
 	metadata = {
 		"user_id": str(current_user.id),
 		"payment_type": payload.payment_type,
+		"welcome_discount_applied": "true" if welcome_discount_applied else "false",
 	}
 	
 	if payload.payment_type == "subscription" and payload.plan:
@@ -101,7 +116,7 @@ async def create_kassa_payment(
 
 	req_body = {
 		"amount": {
-			"value": f"{payload.amount:.2f}",
+			"value": f"{final_amount:.2f}",
 			"currency": cfg["currency"],
 		},
 		"confirmation": {
@@ -190,7 +205,7 @@ async def create_kassa_payment(
 			operation_id=data.get("id"),
 			payment_type=payload.payment_type,
 			user_id=current_user.id,
-			amount=str(payload.amount),
+			amount=str(final_amount),
 			currency=cfg["currency"],
 			label=f"yookassa_{payload.payment_type}",
 			package_id=payload.package_id if payload.payment_type == "topup" else None,
@@ -328,10 +343,19 @@ async def process_yookassa_webhook(
 			# Активация подписки
 			sub = await service.activate_subscription(user_id, plan, months=months)
 			logger.info(f"[YOOKASSA WEBHOOK] Subscription activated: user_id={user_id}, plan={plan}, months={months}")
-			
+
+			# Снимаем флаг скидки если была применена
+			welcome_discount_applied = metadata.get("welcome_discount_applied") == "true"
+			if welcome_discount_applied:
+				result_user = await db.execute(select(Users).where(Users.id == user_id))
+				user_obj = result_user.scalar_one_or_none()
+				if user_obj and not user_obj.welcome_discount_used:
+					user_obj.welcome_discount_used = True
+					logger.info(f"[PROMO] welcome_discount_used set to True for user_id={user_id}")
+
 			transaction.processed = True
 			await db.commit()
-			
+
 			return {"status": "ok", "type": "subscription", "plan": plan}
 		
 		elif payment_type == "booster" and booster_type == "messages_photos":
@@ -339,8 +363,8 @@ async def process_yookassa_webhook(
 			logger.info(f"[YOOKASSA WEBHOOK] Processing booster: user_id={user_id}, amount={amount}")
 			
 			# Проверяем сумму (должна быть 69 руб)
-			if amount < 65:  # С учетом возможных комиссий
-				logger.error(f"[YOOKASSA WEBHOOK] Booster amount too low: {amount} < 65")
+			if amount < 50:  # С учетом возможных комиссий и скидки 20% (69 * 0.8 = 55.2₽)
+				logger.error(f"[YOOKASSA WEBHOOK] Booster amount too low: {amount} < 50")
 				raise HTTPException(status_code=400, detail=f"Booster amount too low: {amount}")
 			
 			# Получаем подписку пользователя
@@ -368,13 +392,22 @@ async def process_yookassa_webhook(
 			# Увеличиваем лимиты: +30 сообщений, +10 генераций
 			subscription.monthly_messages = (subscription.monthly_messages or 0) + 30
 			subscription.monthly_photos = (subscription.monthly_photos or 0) + 10
-			
+
 			# Update new limit fields as well to ensure it works with new system
 			subscription.images_limit = (subscription.images_limit or 0) + 10
 			subscription.voice_limit = (subscription.voice_limit or 0) + 10
-			
+
 			await db.flush()
-			
+
+			# Снимаем флаг скидки если была применена (бустер тоже считается первой покупкой)
+			welcome_discount_applied = metadata.get("welcome_discount_applied") == "true"
+			if welcome_discount_applied:
+				result_user = await db.execute(select(Users).where(Users.id == user_id))
+				user_obj = result_user.scalar_one_or_none()
+				if user_obj and not user_obj.welcome_discount_used:
+					user_obj.welcome_discount_used = True
+					logger.info(f"[PROMO] welcome_discount_used set to True (booster) for user_id={user_id}")
+
 			# Инвалидируем кэш
 			from app.utils.redis_cache import cache_delete, key_subscription, key_subscription_stats
 			from app.services.profit_activate import emit_profile_update

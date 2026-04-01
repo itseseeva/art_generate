@@ -1,4 +1,15 @@
 {
+    "promoBar": {
+        "welcomeDiscount": "Welcome discount!",
+        "registerFor20": "Hurry to register now and get 20% off",
+        "discountActive": "Hurry to register now and get 20% off",
+        "hideBanner": "Hide banner (for admins)",
+        "showBanner": "Show promo banner (for admins)",
+        "promoPrefix": "Hurry to",
+        "promoBtn": "register",
+        "promoSuffix": "now and get 20% off",
+        "timerPrefix": "Offer expires in:"
+    },
     "auth": {
         "login": "Login",
         "register": "Register",
@@ -126,7 +137,8 @@
         "logout": "Logout",
         "login": "Login",
         "register": "Register",
-        "adminLogs": "Admin Logs"
+        "adminLogs": "Admin Logs",
+        "adminSlider": "Manage Slider"
     },
     "sidebar": {
         "menu": "Menu",
@@ -138,7 +150,20 @@
         "messages": "Messages",
         "bugReport": "Report Bug",
         "profile": "Profile",
-        "shop": "Shop"
+        "shop": "Shop",
+        "animatePhoto": "Animate Photo"
+    },
+    "animatePhoto": {
+        "title": "Animate Photo",
+        "subtitle": "Transform your static photos into live videos in a few seconds",
+        "selectImage": "Select photo",
+        "quality": "Quality",
+        "seconds": "Duration (sec)",
+        "prompt": "Prompt",
+        "animate": "Animate",
+        "standard": "Standard",
+        "high": "High",
+        "placeholder": "Describe what the character should do in the video..."
     },
     "nsfwWarning": {
         "title": "Content 18+",

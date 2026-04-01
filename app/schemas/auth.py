@@ -65,8 +65,11 @@ class UserResponse(BaseModel):
     created_at: Optional[datetime] = None
     subscription: Optional[dict] = None  # Информация о подписке
     country: Optional[str] = None  # Страна пользователя
+    has_welcome_discount: bool = False  # Получил ли приветственную скидку 20%
+    welcome_discount_used: bool = False  # Использовал ли скидку на первую покупку
 
     model_config = ConfigDict(from_attributes=True)
+
 
 
 class UserLogin(BaseModel):

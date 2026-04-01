@@ -132,9 +132,9 @@ export const ShopPage: React.FC<any> = ({
 
   const formatPrice = (rubles: number) => {
     if (currentLang === 'en') {
-      return `$${(rubles / exchangeRate).toFixed(2)}`;
+      return `$${Math.round(rubles / exchangeRate)}`;
     }
-    return `${rubles}₽`;
+    return `${Math.round(rubles)}₽`;
   };
 
   // --- State ---
@@ -157,6 +157,11 @@ export const ShopPage: React.FC<any> = ({
   const [creditPackages, setCreditPackages] = useState<any[]>([]);
   const [userCountry, setUserCountry] = useState<string | null>(null);
   const [subscriptionToast, setSubscriptionToast] = useState<{ plan: string } | null>(null);
+
+  // --- Приветственная скидка 20% ---
+  const hasWelcomeDiscount: boolean = !!propUserInfo?.has_welcome_discount;
+  const welcomeDiscountUsed: boolean = !!propUserInfo?.welcome_discount_used;
+  const promoActive: boolean = hasWelcomeDiscount && !welcomeDiscountUsed;
 
   // --- Effects ---
   useEffect(() => {
@@ -231,19 +236,32 @@ export const ShopPage: React.FC<any> = ({
   // --- Business Logic ---
   const calculatePrice = (basePrice: number, isStandard1MonthOverride: boolean = false) => {
     const months = CYCLE_MONTHS[billingCycle];
-
     const discount = DISCOUNTS[billingCycle];
-    const monthlyDiscounted = basePrice * (1 - discount);
-    const roundedMonthly = Math.floor(monthlyDiscounted);
-    const totalDiscounted = roundedMonthly * months;
+
+    // Скидка за период (3/6/12 месяцев)
+    const monthlyAfterPeriodDiscount = basePrice * (1 - discount);
+    const roundedMonthly = Math.floor(monthlyAfterPeriodDiscount);
+    const totalForApi = roundedMonthly * months;
     const totalOriginal = basePrice * months;
 
+    // Приветственная скидка -20%
+    let finalTotal = totalForApi;
+    if (promoActive) {
+      finalTotal = Math.round(totalForApi * 0.80); // целые рубли, без копеек
+    }
+    // Гарантируем целое число
+    finalTotal = Math.round(finalTotal);
+
+    // Для отображения ежемесячной цены со всеми скидками
+    const finalMonthly = Math.floor(finalTotal / months);
+
     return {
-      monthly: roundedMonthly,
-      total: totalDiscounted,
+      monthly: finalMonthly,
+      total: finalTotal,              // итоговая сумма К ОПЛАТЕ (целое число)
+      totalForApi: totalForApi,       // сумма без промо (для тестов)
       originalMonthly: basePrice,
       originalTotal: totalOriginal,
-      discountPercent: Math.round(discount * 100)
+      hasPromo: promoActive,
     };
   };
 
@@ -267,7 +285,7 @@ export const ShopPage: React.FC<any> = ({
     try {
       const basePrice = plan === 'premium' ? 1199 : 449;
       const priceInfo = calculatePrice(basePrice, plan === 'standard');
-      const amount = priceInfo.total;
+      const amount = priceInfo.total; // Итоговая сумма с промо-скидкой (целое число)
       const description = `${plan.toUpperCase()} ${t('shop.subscription')} (${billingCycle.replace('_', ' ')})`;
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/kassa/create_payment/`, {
         method: 'POST',
@@ -302,7 +320,14 @@ export const ShopPage: React.FC<any> = ({
     try {
       const basePrice = plan === 'premium' ? 1199 : 449;
       const priceInfo = calculatePrice(basePrice, plan === 'standard');
-      const amount = priceInfo.total;
+
+      // Для EN — отправляем USD, для RU — рубли
+      const isEn = currentLang === 'en';
+      const amount = isEn
+        ? Math.round(priceInfo.total / exchangeRate)  // конвертируем в USD
+        : priceInfo.total;                             // рубли
+      const currency = isEn ? 'USD' : 'RUB';
+
       const description = `${plan.toUpperCase()} ${t('shop.subscription')} (${billingCycle.replace('_', ' ')})`;
 
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/nowpayments/create_payment/`, {
@@ -313,6 +338,7 @@ export const ShopPage: React.FC<any> = ({
         },
         body: JSON.stringify({
           amount,
+          currency,
           description,
           plan,
           months: CYCLE_MONTHS[billingCycle],
@@ -335,7 +361,7 @@ export const ShopPage: React.FC<any> = ({
     try {
       const basePrice = plan === 'premium' ? 1199 : 449;
       const priceInfo = calculatePrice(basePrice, plan === 'standard');
-      const amount = priceInfo.total;
+      const amount = priceInfo.totalForApi;
       const description = `[TEST] ${plan.toUpperCase()} ${t('shop.subscription')}`;
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/kassa/create_payment/`, {
         method: 'POST',
@@ -368,7 +394,7 @@ export const ShopPage: React.FC<any> = ({
     try {
       const basePrice = plan === 'premium' ? 1199 : 449;
       const priceInfo = calculatePrice(basePrice, plan === 'standard');
-      const amount = priceInfo.total;
+      const amount = priceInfo.totalForApi;
       const description = `[TEST] ${plan.toUpperCase()} ${t('shop.subscription')}`;
 
       const response = await fetch(`${API_CONFIG.BASE_URL}/api/v1/nowpayments/create_payment/`, {
@@ -526,6 +552,22 @@ export const ShopPage: React.FC<any> = ({
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-4xl mx-auto flex flex-col items-center"
       >
+        {/* Promo Welcome Discount banner */}
+        {promoActive && (
+          <div className="w-full max-w-2xl mb-6 relative overflow-hidden rounded-xl border border-violet-500/40 bg-gradient-to-r from-violet-900/40 via-purple-900/30 to-fuchsia-900/40 backdrop-blur-sm p-4 flex items-center gap-3">
+            <span className="text-2xl">🎁</span>
+            <div className="flex-1">
+              <p className="text-violet-200 font-bold text-sm">
+                {currentLang === 'en' ? 'Your welcome discount 20% is active!' : 'Ваша приветственная скидка 20% активна!'}
+              </p>
+              <p className="text-violet-300/70 text-xs mt-0.5">
+                {currentLang === 'en' ? 'Applied to first purchase · stacks with period discounts' : 'Применяется к первой покупке · суммируется со скидками за период'}
+              </p>
+            </div>
+            <span className="bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white text-xs font-black px-3 py-1.5 rounded-full shadow-lg shadow-violet-500/30 whitespace-nowrap">−20%</span>
+          </div>
+        )}
+
         {/* Sale Banner */}
         <div className="w-full max-w-2xl mb-10 relative overflow-hidden rounded-xl border border-pink-500/30 bg-pink-500/5 backdrop-blur-sm p-4 flex justify-center items-center gap-4">
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-pink-500/10 to-transparent animate-shimmer" style={{ backgroundSize: '200% 100%' }} />
@@ -621,9 +663,20 @@ export const ShopPage: React.FC<any> = ({
             whileHover={{ y: -8 }}
             className="relative p-4 rounded-2xl bg-gradient-to-b from-amber-500/10 to-transparent border border-amber-500/30 backdrop-blur-xl h-full min-h-[450px] flex flex-col"
           >
+            {/* Бейдж скидки */}
+            {promoActive && (
+              <div className="absolute -top-3 left-3 z-10">
+                <span className="bg-gradient-to-r from-violet-600 to-fuchsia-500 text-white text-[10px] font-black px-2.5 py-1 rounded-full shadow-lg shadow-violet-500/40 uppercase tracking-wider whitespace-nowrap">
+                  {currentLang === 'en' ? '🎁 Your 20% discount applied' : '🎁 Ваша скидка 20% применена'}
+                </span>
+              </div>
+            )}
             <div className="mb-4">
               <h3 className="text-xl font-bold text-amber-400 mb-1">{t('tariffs.plans.standard.name')}</h3>
               <div className="flex items-baseline gap-1">
+                {promoActive && (
+                  <span className="text-sm text-gray-500 line-through mr-1">{formatPrice(standardBasePrice)}/{t('shop.perMonth')}</span>
+                )}
                 <span className="text-3xl font-bold text-white">{formatPrice(standardPrice.monthly)}</span>
                 <span className="text-gray-400 text-xs">/{t('shop.perMonth')}</span>
               </div>
@@ -694,7 +747,15 @@ export const ShopPage: React.FC<any> = ({
                   <div className="w-5 h-5 flex items-center justify-center">
                     <img src="/i-removebg-preview.png" alt="Crypto" className="w-5 h-5 object-contain" />
                   </div>
-                  <span>Crypto {formatPrice(standardPrice.total)}</span>
+                  <span className="flex items-center gap-1.5">
+                    {promoActive && (
+                      <span className="text-xs text-gray-400 line-through font-normal">Crypto {formatPrice(standardPrice.totalForApi)}</span>
+                    )}
+                    Crypto {formatPrice(standardPrice.total)}
+                    {promoActive && (
+                      <span className="text-[10px] bg-violet-500/30 text-violet-300 px-1.5 py-0.5 rounded-full font-bold">-20%</span>
+                    )}
+                  </span>
                 </div>
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-indigo-500/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
               </motion.button>
@@ -741,6 +802,14 @@ export const ShopPage: React.FC<any> = ({
                 {t('shop.bestChoice')}
               </span>
             </div>
+            {/* Бейдж скидки для Premium */}
+            {promoActive && (
+              <div className="absolute -top-3 left-3 z-20">
+                <span className="bg-gradient-to-r from-violet-600 to-fuchsia-500 text-white text-[10px] font-black px-2.5 py-1 rounded-full shadow-lg shadow-violet-500/40 uppercase tracking-wider whitespace-nowrap">
+                  {currentLang === 'en' ? '🎁 Your 20% discount applied' : '🎁 Ваша скидка 20% применена'}
+                </span>
+              </div>
+            )}
 
             <div className="flex-1 rounded-[14px] bg-slate-950/90 backdrop-blur-xl p-4 flex flex-col h-full border border-white/5">
 
@@ -749,6 +818,9 @@ export const ShopPage: React.FC<any> = ({
                   <h3 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-red-400 to-purple-400">{t('tariffs.plans.premium.name')}</h3>
                 </div>
                 <div className="flex items-baseline gap-1">
+                  {promoActive && (
+                    <span className="text-sm text-gray-500 line-through mr-1">{formatPrice(premiumBasePrice)}/{t('shop.perMonth')}</span>
+                  )}
                   <span className="text-3xl font-bold text-white">{formatPrice(premiumPrice.monthly)}</span>
                   <span className="text-gray-400 text-xs">/{t('shop.perMonth')}</span>
                 </div>
@@ -819,7 +891,15 @@ export const ShopPage: React.FC<any> = ({
                     <div className="w-5 h-5 flex items-center justify-center">
                       <img src="/i-removebg-preview.png" alt="Crypto" className="w-5 h-5 object-contain" />
                     </div>
-                    <span>Crypto {formatPrice(premiumPrice.total)}</span>
+                    <span className="flex items-center gap-1.5">
+                      {promoActive && (
+                        <span className="text-xs text-gray-400 line-through font-normal">Crypto {formatPrice(premiumPrice.totalForApi)}</span>
+                      )}
+                      Crypto {formatPrice(premiumPrice.total)}
+                      {promoActive && (
+                        <span className="text-[10px] bg-violet-500/30 text-violet-300 px-1.5 py-0.5 rounded-full font-bold">-20%</span>
+                      )}
+                    </span>
                   </div>
                   <div className="absolute inset-0 bg-gradient-to-r from-transparent via-indigo-500/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
                 </motion.button>

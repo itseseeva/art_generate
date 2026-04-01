@@ -58,7 +58,11 @@ import time
 import logging
 import traceback
 import json
+from slugify import slugify
+import markdown
+from urllib.parse import unquote
 from contextlib import asynccontextmanager
+import re
 
 # Устанавливаем рабочую директорию ПЕРЕД импортами
 import os
@@ -83,12 +87,12 @@ except ImportError as e:
 import jwt
 
 from fastapi import FastAPI, Request, HTTPException, WebSocket, WebSocketDisconnect, Depends
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from fastapi.responses import JSONResponse, FileResponse, RedirectResponse, Response, StreamingResponse, HTMLResponse
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import AsyncSession
-from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 from pydantic import BaseModel, Field, ConfigDict
@@ -502,6 +506,17 @@ app = FastAPI(
     redoc_url="/redoc",
     openapi_url="/openapi.json"
 )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Детальное логирование ошибок валидации (422)."""
+    exc_str = f'{exc}'.replace('\n', ' ').replace('   ', ' ')
+    logger.error(f"[VALIDATION ERROR] {request.method} {request.url.path}: {exc_str}")
+    logger.error(f"[VALIDATION DETAILS] {exc.errors()}")
+    return JSONResponse(
+        status_code=422,
+        content={"detail": exc.errors(), "body": exc.body},
+    )
 
 # Событие startup удалено - синхронизация персонажей отключена
 
@@ -1044,7 +1059,8 @@ async def unicode_decode_handler(request: Request, exc: UnicodeDecodeError):
         content={"detail": f"Unicode decoding error: {str(exc)}"}
     )
 
-# Статические файлы не нужны
+
+# (Оставшаяся часть файла)
 
 # Папка для изображений не нужны
 
@@ -1386,6 +1402,16 @@ async def profile_updates_ws(websocket: WebSocket):
         logger.error("[PROFILE WS] Ошибка инициализации: %s", exc)
         await websocket.close(code=1011)
 
+# Роутер для промо-слайдера
+try:
+    from app.api.endpoints.promo_slider import router as promo_slider_router
+    app.include_router(promo_slider_router, prefix="/api/v1/promo-slider", tags=["promo-slider"])
+    logger.info("[ROUTER] Promo slider router подключен")
+except Exception as e:
+    logger.error(f"[ERROR] Ошибка подключения роутера promo_slider: {e}")
+    import traceback
+    logger.error(f"Traceback: {traceback.format_exc()}")
+
 # Подключаем роутер платной галереи (отдельно от других роутеров)
 try:
     from app.routers.gallery import router as gallery_router
@@ -1466,6 +1492,10 @@ except Exception as e:
 # Подключаем роутер генерации изображений
 try:
     from app.api.endpoints.image_generation_endpoints import router as image_generation_router
+    from app.api.endpoints.runpod_endpoints import router as runpod_router
+    app.include_router(runpod_router, prefix="/api/v1/runpod", tags=["runpod"])
+    logger.info("[ROUTER] RunPod router подключен")
+    
     app.include_router(image_generation_router, prefix="/api/v1", tags=["image-generation"])
     logger.info("[ROUTER] Image generation router подключен")
 except Exception as e:
@@ -1533,6 +1563,7 @@ def _validation_errors_to_serializable(errors: list) -> list:
 
 
 # Обработчики ошибок
+from fastapi.exceptions import RequestValidationError
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(
     request: Request, exc: RequestValidationError
@@ -1619,6 +1650,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 from fastapi.responses import FileResponse, JSONResponse
+import re
 
 @app.get("/assets/{path:path}")
 async def assets(path: str):
@@ -1676,6 +1708,8 @@ async def assets(path: str):
 @app.get("/tags")
 @app.get("/tags/{path:path}")
 @app.get("/profile/{path:path}")
+@app.get("/character/{path:path}")
+@app.get("/characters/{path:path}")
 @app.get("/ru")
 @app.get("/ru/")
 @app.get("/ru/{path:path}")
@@ -1684,19 +1718,24 @@ async def assets(path: str):
 @app.get("/en/{path:path}")
 async def frontend_index(request: Request, db: AsyncSession = Depends(get_db)):
     """
-    Сервирует index.html из папки frontend/dist с подстановкой метаданных персонажа (SEO).
-    Работает при наличии параметра ?character=ID или ?character=NAME.
+    Сервирует index.html из папки frontend/dist с полной инъекцией лора (SEO SSR).
     """
     try:
-        # Определяем абсолютный путь к папке dist
+        # Определяем язык страницы из пути
+        path = request.url.path
+        lang = 'ru'
+        if path.startswith('/en'):
+            lang = 'en'
+        elif path.startswith('/ru'):
+            lang = 'ru'
+
+        # Определяем путь к index.html
         repo_root = Path(__file__).resolve().parents[1]
-        dist_path = repo_root / "frontend" / "dist"
-        index_html_path = dist_path / "index.html"
+        index_html_path = repo_root / "frontend" / "dist" / "index.html"
         
         if not index_html_path.exists():
-            logger.error(f"Файл index.html не найден в frontend/dist: {index_html_path}")
-            # Пытаемся найти в текущей папке или по альтернативному пути
-            alt_path = Path(__file__).parent / "static" / "index.html"
+            # Если dist не найден (локальная разработка), пробуем frontend/index.html
+            alt_path = repo_root / "frontend" / "index.html"
             if alt_path.exists():
                 index_html_path = alt_path
             else:
@@ -1706,121 +1745,156 @@ async def frontend_index(request: Request, db: AsyncSession = Depends(get_db)):
         with open(index_html_path, "r", encoding="utf-8") as f:
             html_content = f.read()
 
-        # Получаем ID или имя персонажа из параметров запроса
-        character_id = request.query_params.get("character")
+        # Извлекаем идентификатор персонажа из пути или параметров
+        character_id = None
+        
+        # 1. Проверяем путь (например, /ru/character/elena или /character/elena)
+        path_parts = path.strip('/').split('/')
+        if 'character' in path_parts:
+            idx = path_parts.index('character')
+            if idx + 1 < len(path_parts):
+                character_id = path_parts[idx + 1]
+        
+        # 2. Фаллбэк на параметры запроса ?character=...
+        if not character_id:
+            character_id = request.query_params.get("character")
         
         if character_id:
             try:
                 from app.chat_bot.models.models import CharacterDB
-                from sqlalchemy import select
+                from sqlalchemy import select, func, or_
                 import re
                 
-                # Поиск персонажа
-                if character_id.isdigit():
-                    stmt = select(CharacterDB).where(CharacterDB.id == int(character_id))
+                # Декодируем идентификатор
+                decoded_id = unquote(character_id).strip()
+                
+                # Поиск персонажа: ID, Slug или Имя (кириллица поддерживается)
+                if decoded_id.isdigit():
+                    stmt = select(CharacterDB).where(CharacterDB.id == int(decoded_id))
                 else:
-                    stmt = select(CharacterDB).where(CharacterDB.name == character_id)
+                    # Ищем по slug (приоритет), name или display_name. Регистронезависимо.
+                    stmt = select(CharacterDB).where(
+                        or_(
+                            func.lower(CharacterDB.slug) == func.lower(decoded_id),
+                            func.lower(CharacterDB.name) == func.lower(decoded_id),
+                            func.lower(CharacterDB.display_name) == func.lower(decoded_id),
+                            func.lower(CharacterDB.name_ru) == func.lower(decoded_id),
+                            func.lower(CharacterDB.name_en) == func.lower(decoded_id)
+                        )
+                    )
                     
                 result = await db.execute(stmt)
-                character = result.scalar_one_or_none()
+                character = result.scalars().first()
                 
                 if character:
-                    name = character.display_name or character.name
-                    description = character.description or ""
-                    appearance = character.character_appearance or ""
-                    location = character.location or ""
+                    # Собираем данные на нужном языке (RU/EN)
+                    name = (character.name_ru if lang == 'ru' else character.name_en) or character.display_name or character.name
+                    lore = (character.seo_lore_ru if lang == 'ru' else character.seo_lore_en) or character.seo_lore_ru or character.description or ""
                     
-                    # Пытаемся извлечь личность и сценарий из промпта
-                    prompt_text = character.prompt or ""
-                    personality = ""
-                    scenario = ""
-                    
-                    # Поиск Личности/Характера (как во фронтенде)
-                    # Используем DOTALL (. matches newline) и более строгие ключи
-                    pers_match = re.search(
-                        r"(?:Personality and Character|Personality|Личность и Характер|Личность):\s*(.*?)(?=\s*(?:Role-playing Situation|Scenario|Instructions|Response Style|###|$))",
-                        prompt_text,
-                        re.IGNORECASE | re.DOTALL
-                    )
-                    if pers_match:
-                        personality = pers_match.group(1).strip()
-                    
-                    # Поиск Сценария/Обстановки
-                    scen_match = re.search(
-                        r"(?:Role-playing Situation|Scenario|Scene|Situation|Сценарий|Обстановка|Ситуация):\s*(.*?)(?=\s*(?:Instructions|Response Style|Personality|###|$))",
-                        prompt_text,
-                        re.IGNORECASE | re.DOTALL
-                    )
-                    if scen_match:
-                        scenario = scen_match.group(1).strip()
-
                     # Подготавливаем метаданные
-                    title = f"{name} - Candy Girls Chat AI Чат"
-                    meta_desc = f"Общайтесь с {name} на Candy Girls Chat. {description[:160]}..."
-                    
-                    # Заменяем Title (более гибко через regex)
-                    html_content = re.sub(
-                        r"<title>.*?</title>",
-                        f"<title>{title}</title>",
-                        html_content,
-                        flags=re.IGNORECASE
-                    )
-                    
-                    # Заменяем OG Title
-                    html_content = re.sub(
-                        r'<meta property="og:title" content=".*?" />',
-                        f'<meta property="og:title" content="{title}" />',
-                        html_content,
-                        flags=re.IGNORECASE
-                    )
-                    
-                    # Заменяем Description
-                    html_content = re.sub(
-                        r'<meta name="description" content=".*?" />',
-                        f'<meta name="description" content="{meta_desc}" />',
-                        html_content,
-                        flags=re.IGNORECASE
-                    )
-                    
-                    # Заменяем OG Description
-                    html_content = re.sub(
-                        r'<meta property="og:description" content=".*?" />',
-                        f'<meta property="og:description" content="{meta_desc}" />',
-                        html_content,
-                        flags=re.IGNORECASE
-                    )
-                    
-                    # Формируем дополнительные поля для SEO
-                    extra_fields = ""
-                    if personality:
-                        extra_fields += f"        <p>Личность: {personality}</p>\n"
-                    if scenario:
-                        extra_fields += f"        <p>Сценарий: {scenario}</p>\n"
+                    if lang == 'en':
+                        title = f"{name} - AI Roleplay Story & Lore | Candy Girls Chat"
+                    else:
+                        title = f"{name} - ИИ ролевой чат и история персонажа | Candy Girls Chat"
+                        
+                    # Очистка лора от markdown для короткого описания
+                    meta_desc_raw = re.sub(r'[#*`\[\]]', '', lore)
+                    meta_desc = (meta_desc_raw[:160].strip() + "...") if len(meta_desc_raw) > 160 else meta_desc_raw
 
-                    # Вставляем скрытый блок с данными после <body> (учитывая возможные атрибуты и пробелы)
-                    hidden_block = f"""
-    <div style="display:none;" id="seo-metadata">
-        <h1>{name}</h1>
-        <p>{description}</p>
-        <p>Внешность: {appearance}</p>
-        <p>Локация: {location}</p>
-{extra_fields}    </div>
-"""
-                    # Ищем тег body и вставляем после него
-                    html_content = re.sub(
-                        r"(<body.*?>)",
-                        r"\1" + hidden_block,
-                        html_content,
-                        flags=re.IGNORECASE
-                    )
+                    # Заменяем Title
+                    html_content = re.sub(r"<title>.*?</title>", f"<title>{title}</title>", html_content, flags=re.IGNORECASE | re.S)
                     
-                    logger.info(f"[SEO] Инъекция метаданных для персонажа: {name}")
+                    # Функция для надежной замены мета-тегов (учитывает новые строки и разный порядок атрибутов)
+                    def replace_meta(target_html, meta_name_or_prop, replacement_value):
+                        # Ищем тег <meta ...> целиком, проверяя наличие нужного name или property
+                        meta_tag_pattern = r'<meta\s+[^>]*?(?:name|property)=["\']' + re.escape(meta_name_or_prop) + r'["\'][^>]*?>'
+                        
+                        def content_replacer(match):
+                            tag = match.group(0)
+                            # Внутри найденного тега заменяем значение в content="..."
+                            new_tag = re.sub(r'(content=(["\'])).*?(\2)', rf'\1{replacement_value}\3', tag, flags=re.IGNORECASE | re.S)
+                            return new_tag
+
+                        return re.sub(meta_tag_pattern, content_replacer, target_html, flags=re.IGNORECASE | re.S)
+
+                    # Массовая замена мета-тегов
+                    html_content = replace_meta(html_content, "description", meta_desc)
+                    html_content = replace_meta(html_content, "og:title", title)
+                    html_content = replace_meta(html_content, "og:description", meta_desc)
+                    html_content = replace_meta(html_content, "twitter:title", title)
+                    html_content = replace_meta(html_content, "twitter:description", meta_desc)
+
+                    # OG:IMAGE
+                    image_url = character.seo_lore_image_url or "https://candygirlschat.com/logo-cherry.jpg"
+                    html_content = replace_meta(html_content, "og:image", image_url)
+                    html_content = replace_meta(html_content, "twitter:image", image_url)
+
+                    # HREFLANG и Canonical
+                    base_url = "https://candygirlschat.com"
+                    char_slug = character.slug or slugify(character.name)
+                    hreflang_tags = f"""
+    <link rel="alternate" hreflang="ru" href="{base_url}/ru/character/{char_slug}" />
+    <link rel="alternate" hreflang="en" href="{base_url}/en/character/{char_slug}" />
+    <link rel="alternate" hreflang="x-default" href="{base_url}/ru/character/{char_slug}" />
+    <link rel="canonical" href="{base_url}/{lang}/character/{char_slug}" />
+                    """
+                    # Вставляем теги перед </head>
+                    if '</head>' in html_content:
+                        html_content = html_content.replace('</head>', f'{hreflang_tags}\n</head>')
+
+                    # ГЕНЕРАЦИЯ HTML ЛОРА ДЛЯ ИНЪЕКЦИИ В #ROOT
+                    rendered_lore_html = markdown.markdown(lore) if lore else ""
+                    
+                    appearance = (character.appearance_ru if lang == 'ru' else character.appearance_en) or ""
+                    location = (character.location_ru if lang == 'ru' else character.location_en) or ""
+                    
+                    # Подзаголовок в зависимости от языка
+                    subtitle = "AI Character Story & Lore" if lang == 'en' else "История и лор персонажа"
+                    
+                    seo_article = f"""
+    <div id="seo-ssr-content" style="max-width: 900px; margin: 0 auto; color: #fff; padding: 40px 20px; font-family: sans-serif; line-height: 1.6;">
+        <header style="margin-bottom: 30px; text-align: center;">
+            <h1 style="font-size: 2.5rem; margin-bottom: 10px;">{name}</h1>
+            <div style="font-style: italic; opacity: 0.8; margin-bottom: 20px;">{subtitle}</div>
+            {f'<img src="{character.seo_lore_image_url}" alt="{name}" style="width: 100%; max-width: 600px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); margin-bottom: 30px;" />' if character.seo_lore_image_url else ''}
+        </header>
+        
+        <article class="lore-body" style="font-size: 1.1rem;">
+            {rendered_lore_html}
+        </article>
+        
+        <footer style="margin-top: 50px; padding-top: 30px; border-top: 1px solid rgba(255,255,255,0.1);">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
+                {f'<div><strong>{"Внешность" if lang == "ru" else "Appearance"}:</strong><p>{appearance}</p></div>' if appearance else ''}
+                {f'<div><strong>{"Локация" if lang == "ru" else "Location"}:</strong><p>{location}</p></div>' if location else ''}
+            </div>
+            <div style="margin-top: 30px; text-align: center;">
+                <a href="/{lang}/chat?character={character.id}" style="display: inline-block; background: #8b5cf6; color: #fff; padding: 12px 30px; border-radius: 30px; text-decoration: none; font-weight: bold; transition: transform 0.2s;">
+                    { 'Начать чат' if lang == 'ru' else 'Start Chat' }
+                </a>
+            </div>
+        </footer>
+    </div>
+                    """
+                    
+                    # Вставляем статью в <div id="root">
+                    if '<div id="root"></div>' in html_content:
+                        html_content = html_content.replace('<div id="root"></div>', f'<div id="root">{seo_article}</div>')
+                    else:
+                        # Если там есть пробелы или переносы, используем regex
+                        html_content = re.sub(r'(<div\s+id="root">)\s*(</div>)', rf'\1{seo_article}\2', html_content, flags=re.S)
+                    
+                    logger.info(f"[SEO] SSR Injection successful for: {name} (ID: {character_id})")
                 else:
-                    logger.warning(f"[SEO] Персонаж не найден: {character_id}")
+                    logger.warning(f"[SEO] Character not found in DB for ID/Slug: {character_id}")
             except Exception as e:
-                logger.error(f"[SEO] Ошибка при инъекции метаданных: {e}")
+                logger.error(f"[SEO] Exception during SSR injection: {e}", exc_info=True)
         
         return HTMLResponse(content=html_content, status_code=200)
+
+    except Exception as e:
+        logger.error(f"Error in frontend_index: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
     except Exception as e:
         logger.error(f"Ошибка в frontend_index: {e}")
@@ -3272,9 +3346,7 @@ async def chat_endpoint(
             except Exception as e:
                 logger.error(f"[ERROR] Ошибка получения данных персонажа: {e}")
                 # Fallback к файлам
-                character_data = get_character_data(character_name)
-                if not character_data:
-                    raise HTTPException(
+                raise HTTPException(
                         status_code=404, 
                         detail=f"Персонаж '{character_name}' не найден"
                     )

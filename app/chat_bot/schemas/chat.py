@@ -193,6 +193,11 @@ class CharacterConfig(BaseModel):
     location_ru: Optional[str] = Field(None, description="Локация (RU)")
     location_en: Optional[str] = Field(None, description="Location (EN)")
 
+    # Поля для SEO-статьи о персонаже
+    seo_lore_ru: Optional[str] = Field(None, description="SEO Lore (RU)")
+    seo_lore_en: Optional[str] = Field(None, description="SEO Lore (EN)")
+    seo_lore_image_url: Optional[str] = Field(None, description="SEO Lore Image URL(s)")
+
     # translations removed
 
     # face_image удален (IP-Adapter удален)

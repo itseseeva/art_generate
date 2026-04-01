@@ -18,7 +18,7 @@ services:
       --save 300 100
       --save 900 1
       --tcp-backlog 511
-      --timeout 300
+      --timeout 0
       --tcp-keepalive 300
       --maxclients 10000
       --lazyfree-lazy-eviction yes

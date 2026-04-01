@@ -7,6 +7,7 @@ from .balance_history import BalanceHistory
 from .character_comment import CharacterComment
 from .bug_report import BugReport, BugComment
 from .user_voice import UserVoice
+from .promo_slider import PromoSliderItem
 
 __all__ = [
     "Users", "RefreshToken", "EmailVerificationCode",
@@ -15,5 +16,5 @@ __all__ = [
     "ImageGenerationHistory", "BalanceHistory",
     "CharacterComment",
     "BugReport", "BugComment",
-    "UserVoice"
+    "UserVoice", "PromoSliderItem"
 ]

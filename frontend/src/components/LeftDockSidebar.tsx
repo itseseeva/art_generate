@@ -406,7 +406,7 @@ export const LeftDockSidebar: React.FC<LeftDockSidebarProps> = ({
     }
   }
 
-  if (isAuthenticated && isAdmin) {
+  if (isAuthenticated && isAdmin === true) {
     mainBottomDockItems.push({
       icon: <FiBarChart2 size={18} />,
       label: t('nav.adminLogs'),

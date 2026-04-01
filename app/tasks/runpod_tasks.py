@@ -8,7 +8,7 @@ from celery import Task
 from loguru import logger
 
 from app.celery_app import celery_app
-from app.services.runpod_client import generate_image_async
+from app.services.runpod_client import generate_image_async, generate_video_async
 
 
 class RunPodGenerationTask(Task):
@@ -155,10 +155,91 @@ def generate_image_runpod_task(
             # Для OOM делаем паузу побольше, чтобы память успела очиститься
             countdown = 10 if not is_oom else 30
             raise self.retry(exc=e, countdown=countdown)
-        else:
             # Если попытки исчерпаны, пробрасываем ошибку дальше
             # Celery установит состояние FAILURE
             raise RuntimeError(f"Генерация не удалась после {self.max_retries + 1} попыток. Последняя ошибка: {error_msg}")
+
+
+@celery_app.task(
+    bind=True,
+    base=RunPodGenerationTask,
+    name="app.tasks.runpod_tasks.animate_video_runpod_task"
+)
+def animate_video_runpod_task(
+    self,
+    image_base64: str,
+    prompt: str,
+    num_frames: int = 81,
+    width: int = 832,
+    height: int = 480,
+    fps: int = 16,
+    num_inference_steps: int = 20,
+    guidance_scale: float = 5.0,
+    seed: Optional[int] = None,
+    timeout: int = 600
+) -> Dict[str, Any]:
+    """
+    Celery задача для анимации фото (видео-генерация) через RunPod Wan.
+    """
+    task_id = self.request.id
+    current_retry = self.request.retries
+    logger.info(f"[RUNPOD VIDEO TASK] Запуск задачи {task_id} (попытка {current_retry})")
+    
+    def update_celery_progress(progress_str):
+        try:
+            percent = int(progress_str.replace('%', '').strip())
+            self.update_state(
+                state='PROGRESS',
+                meta={
+                    'status': 'generating',
+                    'progress': percent,
+                    'message': f"Generating Video: {percent}%"
+                }
+            )
+        except:
+            pass
+            
+    try:
+        import time
+        start_time = time.time()
+        
+        async def run_animation():
+            return await generate_video_async(
+                image_base64=image_base64,
+                prompt=prompt,
+                num_frames=num_frames,
+                width=width,
+                height=height,
+                fps=fps,
+                num_inference_steps=num_inference_steps,
+                guidance_scale=guidance_scale,
+                seed=seed,
+                timeout=timeout,
+                progress_callback=update_celery_progress
+            )
+
+        video_url = asyncio.run(run_animation())
+        execution_time = int(time.time() - start_time)
+        
+        return {
+            "success": True,
+            "video_url": video_url,
+            "prompt": prompt,
+            "task_id": task_id,
+            "num_frames": num_frames,
+            "generation_time": execution_time,
+            "type": "video"
+        }
+        
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"[RUNPOD VIDEO TASK] Ошибка в задаче {task_id}: {error_msg}")
+        
+        if current_retry < self.max_retries:
+            self.update_state(state='RETRY', meta={'status': 'retrying', 'error': error_msg})
+            raise self.retry(exc=e, countdown=15)
+        else:
+            raise RuntimeError(f"Video generation failed: {error_msg}")
 
 
 @celery_app.task(

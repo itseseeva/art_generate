@@ -55,13 +55,27 @@ const LeftSection = styled.div`
 
 const LogoImg = styled.img`
   width: 280px;
-  max-width: 90%;
-  margin-bottom: 24px;
+  max-width: 100%;
+  margin-bottom: 40px !important;
   object-fit: contain;
   filter: drop-shadow(0 0 24px rgba(168, 85, 247, 0.35));
+  transform: scale(1.4);
 
   @media (max-width: 968px) {
     width: 180px;
+    margin-bottom: 30px !important;
+  }
+`;
+
+const LeftLogoImg = styled.img`
+  width: 450px;
+  max-width: 100%;
+  margin-bottom: 24px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 16px rgba(168, 85, 247, 0.2));
+
+  @media (max-width: 968px) {
+    width: 280px;
     margin-bottom: 16px;
   }
 `;
@@ -429,6 +443,7 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, onVerifyCode, o
       </BackgroundWrapper>
 
       <LeftSection>
+        <LeftLogoImg src="/photo_2026-03-30_22-43-31__2_-removebg-preview.png" alt="Candy Girls Header Logo" />
         <Subtitle>
           {t('auth.loginSubtitle')}
         </Subtitle>
@@ -450,7 +465,7 @@ const RegisterPage: React.FC<RegisterPageProps> = ({ onRegister, onVerifyCode, o
         <FormContainer>
           {!showVerification ? (
             <>
-              <LogoImg src="/photo_2026-03-13_11-19-52-removebg-preview.png" alt="Candy Girls" style={{ display: 'block', margin: '0 auto 16px' }} />
+              <LogoImg src="/photo_2026-03-30_22-47-11-removebg-preview.png" alt="Candy Girls" style={{ display: 'block', margin: '0 auto' }} />
               <FormTitle dangerouslySetInnerHTML={{ __html: t('auth.registerTitle') }} />
               <FormSubtitle>{t('auth.registerSubtitle')}</FormSubtitle>
 

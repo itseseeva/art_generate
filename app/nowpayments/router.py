@@ -66,11 +66,26 @@ async def create_nowpayment(
 
     # Уникальный order_id в системе магазина
     order_id = f"now-{current_user.id}-{payload.payment_type}-{uuid.uuid4().hex[:8]}"
-    
+
+    # Фронт уже передаёт итоговую сумму с учётом скидки — используем как есть
+    final_amount = round(payload.amount, 2)
+
+    # Определяем, была ли применена приветственная скидка (для снятия флага после оплаты)
+    welcome_discount_applied = (
+        getattr(current_user, 'has_welcome_discount', False)
+        and not getattr(current_user, 'welcome_discount_used', True)
+    )
+    if welcome_discount_applied:
+        logger.info(
+            f"[PROMO] Welcome discount was active for user {current_user.id}, "
+            f"amount={final_amount} {payload.currency} (pre-discounted by frontend)"
+        )
+
     # Формируем metadata для webhook (ipn_callback)
     metadata = {
         "user_id": str(current_user.id),
         "payment_type": payload.payment_type,
+        "welcome_discount_applied": "true" if welcome_discount_applied else "false",
     }
     
     if payload.payment_type == "subscription" and payload.plan:
@@ -93,7 +108,7 @@ async def create_nowpayment(
     cancel_url = f"{base_return_url}/shop?payment=cancel"
 
     price_currency = payload.currency.lower()
-    price_amount = payload.amount
+    price_amount = final_amount
     
     # В Sandbox NOWPayments поддерживает только USD
     if payload.is_test and price_currency != "usd":
@@ -161,7 +176,7 @@ async def create_nowpayment(
             operation_id=order_id, # Важно привязать наш ID для webhook
             payment_type=payload.payment_type,
             user_id=current_user.id,
-            amount=str(payload.amount),
+            amount=str(final_amount),
             currency=payload.currency,
             label=f"nowpayments_{payload.payment_type}",
             package_id=payload.package_id if payload.payment_type == "topup" else None,
@@ -265,7 +280,15 @@ async def nowpayments_webhook(
         if payment_type == "subscription" and transaction.subscription_type:
             sub = await service.activate_subscription(user_id, transaction.subscription_type, months=transaction.months)
             logger.info(f"[NOWPAYMENTS WEBHOOK] Subscription activated: user={user_id}, plan={transaction.subscription_type}, months={transaction.months}")
-            
+
+            # Снимаем флаг скидки если была применена
+            # NowPayments не передаёт metadata, поэтому проверяем прямо у пользователя
+            result_user = await db.execute(select(Users).where(Users.id == user_id))
+            user_obj = result_user.scalar_one_or_none()
+            if user_obj and user_obj.has_welcome_discount and not user_obj.welcome_discount_used:
+                user_obj.welcome_discount_used = True
+                logger.info(f"[PROMO] welcome_discount_used set to True (nowpayments sub) for user_id={user_id}")
+
             transaction.processed = True
             transaction.processed_at = datetime.utcnow()
             await db.commit()
@@ -302,7 +325,14 @@ async def nowpayments_webhook(
             subscription.voice_limit = (subscription.voice_limit or 0) + 10
             
             await db.flush()
-            
+
+            # Снимаем флаг скидки (бустер тоже считается первой покупкой)
+            result_user = await db.execute(select(Users).where(Users.id == user_id))
+            user_obj = result_user.scalar_one_or_none()
+            if user_obj and user_obj.has_welcome_discount and not user_obj.welcome_discount_used:
+                user_obj.welcome_discount_used = True
+                logger.info(f"[PROMO] welcome_discount_used set to True (nowpayments booster) for user_id={user_id}")
+
             from app.utils.redis_cache import cache_delete, key_subscription, key_subscription_stats
             from app.services.profit_activate import emit_profile_update
             await cache_delete(key_subscription(user_id))

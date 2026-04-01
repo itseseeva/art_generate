@@ -24,7 +24,9 @@ import { FavoritesPage } from './components/FavoritesPage';
 import { CharacterCommentsPage } from './components/CharacterCommentsPage';
 import { BugReportPage } from './components/BugReportPage';
 import { AdminLogsPage } from './components/AdminLogsPage';
+import { AdminSliderPage } from './components/PromoSlider/AdminSliderPage';
 import { StaggeredSidebar } from './components/StaggeredSidebar';
+import { CharacterProfilePage } from './components/CharacterProfilePage';
 import { LegalPage } from './components/LegalPage';
 import { TermsPage } from './components/TermsPage';
 import { PrivacyPage } from './components/PrivacyPage';
@@ -36,6 +38,7 @@ import ForgotPasswordPage from './components/ForgotPasswordPage';
 import { PaidAlbumPurchaseModal } from './components/PaidAlbumPurchaseModal';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Footer } from './components/Footer';
+import AnimatePhotoPage from './components/AnimatePhotoPage';
 import { GlobalHeader } from './components/GlobalHeader';
 import { authManager } from './utils/auth';
 import { ContentRatingModal } from './components/ContentRatingModal';
@@ -45,6 +48,7 @@ import { useIsMobile } from './hooks/useIsMobile';
 import { API_CONFIG } from './config/api';
 import { getFingerprintId } from './utils/fingerprint';
 import { BoosterOfferModal } from './components/BoosterOfferModal';
+import { claimPromoDiscount } from './hooks/usePromoTimer';
 
 const AppContainer = styled.div<{ $isMobile?: boolean }>`
   width: 100vw;
@@ -67,7 +71,7 @@ const BackgroundWrapper = styled.div`
   pointer-events: none;
 `;
 
-const PageContainer = styled.div<{ $isMobile?: boolean; $isSidebarOpen?: boolean; $isFullWidth?: boolean }>`
+const PageContainer = styled.div<{ $isMobile?: boolean; $isSidebarOpen?: boolean; $isFullWidth?: boolean; $promoVisible?: boolean }>`
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -272,11 +276,15 @@ function App() {
   };
 
   const handleAdminLogs = () => navigateWithLang('/admin-logs');
+  const handleAdminSlider = () => navigateWithLang('/admin-slider');
+  const handleAnimatePhoto = () => navigateWithLang('/animate-photo');
 
   useEffect(() => {
     window.addEventListener('navigate-to-admin-logs', handleAdminLogs);
+    window.addEventListener('navigate-to-admin-slider', handleAdminSlider);
     return () => {
       window.removeEventListener('navigate-to-admin-logs', handleAdminLogs);
+      window.removeEventListener('navigate-to-admin-slider', handleAdminSlider);
     };
   }, [currentLang, navigate]);
 
@@ -355,6 +363,19 @@ function App() {
     authManager.setTokens(data.access_token, data.refresh_token);
     await checkAuth();
 
+    // Если промо-таймер ещё активен — фиксируем скидку на бэкенде (ЖДЁМ завершения!)
+    const promoEndTime = localStorage.getItem('promo_end_time');
+    const promoStillActive = promoEndTime && parseInt(promoEndTime, 10) > Date.now();
+    if (promoStillActive) {
+      const token = data.access_token;
+      const success = await claimPromoDiscount(token);
+      if (success) {
+        localStorage.setItem('has_welcome_discount', 'true');
+        // Обновляем userInfo чтобы скидка сразу отображалась в UI
+        await checkAuth();
+      }
+    }
+
     // Preserve redirect param
     const searchParams = new URLSearchParams(location.search);
     const redirect = searchParams.get('redirect');
@@ -394,12 +415,20 @@ function App() {
 
   const handleCharacterSelect = (character: any) => {
     setSelectedCharacter(character);
-    navigateWithLang(`/chat/${character.id}`);
+    const identifier = character.slug || character.name;
+    navigateWithLang(`/character/${encodeURIComponent(identifier)}`);
+  };
+
+  const handleStartChatFromProfile = (character: any) => {
+    setSelectedCharacter(character);
+    const identifier = character.slug || character.name || character.id;
+    navigateWithLang(`/chat/${encodeURIComponent(identifier)}`);
   };
 
   const handlePhotoGeneration = (character: any) => {
     setSelectedCharacter(character);
-    navigateWithLang(`/photo-generation/${character.id}`);
+    const identifier = character.slug || character.name || character.id;
+    navigateWithLang(`/photo-generation/${encodeURIComponent(identifier)}`);
   };
 
   const handlePaidAlbum = (character: any) => {
@@ -413,7 +442,8 @@ function App() {
     if (canEditAlbum) {
       console.log('[DEBUG] Opening album directly (user has subscription)');
       setSelectedCharacter(character);
-      navigateWithLang(`/paid-album/${character.id}`);
+      const identifier = character.slug || character.name || character.id;
+      navigateWithLang(`/paid-album/${encodeURIComponent(identifier)}`);
     } else {
       console.log('[DEBUG] Opening modal (user does NOT have subscription)');
       // Для FREE пользователей показываем модальное окно с предложением подписки
@@ -424,7 +454,8 @@ function App() {
 
   const handleOpenChat = (character: any) => {
     setSelectedCharacter(character);
-    navigateWithLang(`/chat/${character.id}`);
+    const identifier = character.slug || character.name || character.id;
+    navigateWithLang(`/chat/${encodeURIComponent(identifier)}`);
   };
 
   const handleBackToChat = () => {
@@ -488,8 +519,9 @@ function App() {
 
         setSelectedCharacter(fullCharacterData);
         // Используем setTimeout чтобы дать React время обновить состояние перед навигацией
+        const identifier = fullCharacterData.name || fullCharacterData.id;
         setTimeout(() => {
-          navigateWithLang(`/edit-character?id=${character.id}`);
+          navigateWithLang(`/edit-character?id=${encodeURIComponent(identifier)}`);
         }, 0);
       } else {
         console.error('[EDIT] Failed to load character data:', response.status);
@@ -567,10 +599,10 @@ function App() {
           onOwnProfile={() => handleProfile()}
           initialCharacter={selectedCharacter}
           onOpenPaidAlbum={handlePaidAlbum}
-          onOpenPaidAlbumBuilder={(char) => navigateWithLang(`/paid-album-builder/${char.id || char.name}`)}
+          onOpenPaidAlbumBuilder={(char) => navigateWithLang(`/paid-album-builder/${char.name || char.id}`)}
           onNavigate={(page, char) => {
             setSelectedCharacter(char);
-            navigateWithLang(`/${page}/${char.id}`);
+            navigateWithLang(`/${page}/${char.slug || char.name || char.id}`);
           }}
           subscriptionType={userInfo?.subscription?.subscription_type || 'free'}
         />
@@ -589,7 +621,7 @@ function App() {
           onProfile={handleProfile}
           onOpenPaidAlbumBuilder={(char) => {
             setSelectedCharacter(char);
-            navigateWithLang(`/paid-album-builder/${char.id || char.name}`);
+            navigateWithLang(`/paid-album-builder/${char.name || char.id}`);
           }}
           onOpenChat={handleOpenChat}
           onLogin={handleLogin}
@@ -605,7 +637,7 @@ function App() {
           onProfile={() => handleProfile()}
           onOpenPaidAlbumBuilder={(char) => {
             setSelectedCharacter(char);
-            navigateWithLang(`/paid-album-builder/${char.id || char.name}`);
+            navigateWithLang(`/paid-album-builder/${char.name || char.id}`);
           }}
           onOpenChat={handleOpenChat}
           onLogin={handleLogin}
@@ -617,6 +649,13 @@ function App() {
       <Route path="gallery" element={<UserGalleryPage onBackToMain={handleBackToMain} onShop={handleShop} onProfile={handleProfile} />} />
       <Route path="gallery/:userId" element={<UserGalleryPage onBackToMain={handleBackToMain} onShop={handleShop} onProfile={handleProfile} />} />
       <Route path="favorites" element={<FavoritesPage onBackToMain={handleBackToMain} onCharacterSelect={handleCharacterSelect} onShop={handleShop} onPhotoGeneration={handlePhotoGeneration} onPaidAlbum={handlePaidAlbum} onProfile={handleProfile} />} />
+      <Route path="character/:characterId" element={
+        <CharacterProfilePage
+          onStartChat={handleStartChatFromProfile}
+          onBackToMain={handleBackToMain}
+          onPaidAlbum={handlePaidAlbum}
+        />
+      } />
       <Route path="character-comments" element={
         <CharacterCommentsPage
           characterName={selectedCharacter?.name || ''}
@@ -627,6 +666,8 @@ function App() {
       } />
       <Route path="bug-report" element={<BugReportPage onBackToMain={handleBackToMain} onProfile={handleProfile} onLogout={handleLogout} />} />
       <Route path="admin-logs" element={<AdminLogsPage onBackToMain={handleBackToMain} onShop={handleShop} onProfile={handleProfile} />} />
+      <Route path="admin-slider" element={<AdminSliderPage onBack={handleBackToMain} />} />
+      <Route path="animate-photo" element={<AnimatePhotoPage />} />
       <Route path="legal" element={<LegalPage />} />
       <Route path="terms" element={<TermsPage />} />
       <Route path="privacy" element={<PrivacyPage />} />
@@ -660,7 +701,7 @@ function App() {
     </>
   );
 
-  const isFullWidthPage = ['/chat', '/create-character', '/edit-character'].some(path => {
+  const isFullWidthPage = ['/chat', '/create-character', '/edit-character', '/character/'].some(path => {
     if (path === '/edit-character') {
       return location.pathname.includes('/edit-character') && !location.pathname.includes('/edit-characters');
     }
@@ -701,6 +742,7 @@ function App() {
                 navigateWithLang('/');
               }
             }}
+            onAnimatePhoto={() => { setIsSidebarOpen(false); handleAnimatePhoto(); }}
             onRequireAuth={() => navigateWithLang('/login')}
           />
 
@@ -741,6 +783,7 @@ function App() {
             variant="album_access"
             characterId={selectedAlbumCharacter.id}
             onShop={handleShop}
+            userInfo={userInfo}
           />
         )}
 

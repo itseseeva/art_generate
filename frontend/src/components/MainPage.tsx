@@ -24,6 +24,7 @@ import DarkVeil from '../../@/components/DarkVeil';
 import { BoosterOfferModal } from './BoosterOfferModal';
 import { SEOContent } from './SEOContent';
 import { LoadingSpinner } from './LoadingSpinner';
+import { PromoSlider } from './PromoSlider/PromoSlider';
 
 const PAGE_SIZE = 26;
 
@@ -148,7 +149,7 @@ const FilterButton = styled.button<{ $active?: boolean }>`
   border-radius: ${theme.borderRadius.md};
   background: ${props => props.$active
     ? 'linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(76, 81, 191, 0.2) 100%)'
-    : 'linear-gradient(135deg, rgba(10, 10, 10, 0.95) 0%, rgba(18, 18, 18, 0.98) 100%)'};
+    : 'linear-gradient(135deg, rgba(10, 10, 10, 0.95) 0%, rgba(12, 12, 12, 0.98) 100%)'};
   color: ${props => props.$active ? 'rgba(240, 240, 240, 1)' : 'rgba(160, 160, 160, 1)'};
   font-size: ${theme.fontSize.sm};
   font-weight: ${props => props.$active ? '600' : '500'};
@@ -1545,6 +1546,7 @@ export const MainPage: React.FC<MainPageProps> = ({
       </BackgroundWrapper>
       <ContentWrapper>
         {/* GlobalHeader removed from MainPage */}
+        {!isPhotoGenerationOpen && <PromoSlider />}
         {!isPhotoGenerationOpen && availableTags.length > 0 && (
           <TagFilterBar>
             {availableTags.map((tagObj) => (
@@ -1750,6 +1752,7 @@ export const MainPage: React.FC<MainPageProps> = ({
                   setIsShopModalOpen(true);
                 }}
                 variant={boosterVariantOverride}
+                userInfo={userInfo}
               />
 
               {isAuthModalOpen && (

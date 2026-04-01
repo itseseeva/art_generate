@@ -10,9 +10,10 @@ powershell -Command "$connections = Get-NetTCPConnection -LocalPort 8000 -ErrorA
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --no-access-log
 
 # Запуск с автоперезагрузкой (без очистки порта):
-uvicorn app.main:app --host 0.0.0.0 --port 8001 --no-access-log
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --no-access-log
 
-
+$ docker build -t ihnupfidi/wan-worker:latest .
+$ python download_wan_configs.py
 # Production запуск:
 gunicorn app.main:app -w 4 -k uvicorn.workers.UvicornWorker
 

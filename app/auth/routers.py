@@ -761,7 +761,9 @@ async def get_current_user_info(
             coins=current_user.coins,
             created_at=current_user.created_at,
             subscription=subscription_info,
-            country=current_user.country
+            country=current_user.country,
+            has_welcome_discount=getattr(current_user, 'has_welcome_discount', False) or False,
+            welcome_discount_used=getattr(current_user, 'welcome_discount_used', False) or False,
         )
     except Exception as e:
         # Если есть ошибка с подпиской, возвращаем пользователя без подписки
@@ -775,8 +777,52 @@ async def get_current_user_info(
             coins=current_user.coins,
             created_at=current_user.created_at,
             subscription=None,
-            country=current_user.country
+            country=current_user.country,
+            has_welcome_discount=getattr(current_user, 'has_welcome_discount', False) or False,
+            welcome_discount_used=getattr(current_user, 'welcome_discount_used', False) or False,
         )
+
+
+@auth_router.post("/auth/promo/claim-discount/")
+async def claim_welcome_discount(
+    current_user: Users = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Фиксирует приветственную скидку 20% для пользователя.
+    Вызывается сразу после успешной регистрации, пока таймер активен.
+    Скидка одноразовая — применяется только к первой покупке.
+    """
+    # Перезагружаем пользователя из БД для актуальности
+    result = await db.execute(select(Users).filter(Users.id == current_user.id))
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(status_code=404, detail="Пользователь не найден")
+
+    if user.has_welcome_discount:
+        # Скидка уже была зафиксирована ранее
+        return {
+            "success": True,
+            "already_claimed": True,
+            "has_welcome_discount": user.has_welcome_discount,
+            "welcome_discount_used": user.welcome_discount_used,
+            "message": "Скидка уже зафиксирована в вашем профиле"
+        }
+
+    user.has_welcome_discount = True
+    await db.commit()
+    logger.info(f"[PROMO] Welcome discount granted to user {user.email} (id={user.id})")
+
+    return {
+        "success": True,
+        "already_claimed": False,
+        "has_welcome_discount": True,
+        "welcome_discount_used": False,
+        "message": "Скидка 20% зафиксирована! Применится к вашей первой покупке."
+    }
+
+
 
 
 @auth_router.get("/auth/coins/")

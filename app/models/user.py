@@ -27,6 +27,8 @@ class Users(Base):
     total_messages_sent = Column(Integer, default=0, nullable=False)  # Общее количество отправленных сообщений (не уменьшается при удалении истории)
     registration_ip = Column(String(255), nullable=True)  # IP адрес при регистрации
     country = Column(String(100), nullable=True)  # Страна пользователя (определяется по IP)
+    has_welcome_discount = Column(Boolean, default=False, nullable=False)  # Получил ли приветственную скидку 20% (успел зарегистрироваться в течение 10 мин)
+    welcome_discount_used = Column(Boolean, default=False, nullable=False)  # Потратил ли скидку на первую покупку (скидка одноразовая)
     created_at = Column(
         DateTime, 
         default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)

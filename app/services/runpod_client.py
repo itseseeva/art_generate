@@ -67,6 +67,7 @@ RUNPOD_API_KEY = os.getenv("RUNPOD_API_KEY")
 RUNPOD_URL = os.getenv("RUNPOD_URL")  # Модель "Аниме" (OneObsession/anime) - должен заканчиваться на '/run' или '/runsync'
 RUNPOD_URL_2 = os.getenv("RUNPOD_URL_2")  # Модель "Аниме реализм" (PerfectDeliberate/anime-realism) - должен заканчиваться на '/run' или '/runsync'
 RUNPOD_URL_3 = os.getenv("RUNPOD_URL_3")  # Модель "Реализм" - должен заканчиваться на '/run' или '/runsync'
+RUNPOD_URL_WAN = os.getenv("RUNPOD_URL_WAN")  # Модель "Wan 2.1 I2V" - должен заканчиваться на '/run' или '/runsync'
 
 # Логируем загруженные переменные для отладки (без чувствительных данных) (отключено)
 # logger.debug(f"[RUNPOD] RUNPOD_URL загружен: {'Да' if RUNPOD_URL else 'Нет'}")
@@ -105,6 +106,14 @@ if RUNPOD_URL_3:
 else:
     RUNPOD_URL_BASE_3 = None
     ENDPOINT_ID_3 = None
+
+# Извлекаем базовый URL и ENDPOINT_ID из RUNPOD_URL_WAN
+if RUNPOD_URL_WAN:
+    RUNPOD_URL_BASE_WAN = RUNPOD_URL_WAN.rstrip('/').replace('/run', '').replace('/runsync', '')
+    ENDPOINT_ID_WAN = RUNPOD_URL_BASE_WAN.split('/')[-1] if '/' in RUNPOD_URL_BASE_WAN else None
+else:
+    RUNPOD_URL_BASE_WAN = None
+    ENDPOINT_ID_WAN = None
 
 # Таймауты
 DEFAULT_TIMEOUT = 300  # 5 минут
@@ -628,6 +637,120 @@ async def generate_image_async(
             else:
                 # Неизвестный статус
                 logger.warning(f"[RUNPOD] Неизвестный статус {status} для задачи {job_id}")
+                continue
+
+
+async def generate_video_async(
+    image_base64: str,
+    prompt: str,
+    num_frames: int = 81,
+    width: int = 832,
+    height: int = 480,
+    fps: int = 16,
+    num_inference_steps: int = 20,
+    guidance_scale: float = 5.0,
+    seed: Optional[int] = None,
+    timeout: int = 600,
+    progress_callback = None
+) -> str:
+    """
+    Асинхронная генерация видео (анимация фото) через RunPod Wan v2.1.
+    """
+    if not RUNPOD_URL_WAN:
+        raise ValueError("RUNPOD_URL_WAN не установлен в переменных окружения")
+    
+    start_time = time.time()
+    final_seed = seed if seed is not None and seed != -1 else random.randint(0, 4294967295)
+    
+    params = {
+        "image": image_base64,
+        "prompt": clean_prompt(prompt),
+        "num_frames": num_frames,
+        "width": width,
+        "height": height,
+        "fps": fps,
+        "num_inference_steps": num_inference_steps,
+        "guidance_scale": guidance_scale,
+        "seed": final_seed,
+        "return_type": "url"
+    }
+    
+    headers = {
+        "Authorization": f"Bearer {RUNPOD_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    
+    payload = {"input": params}
+    
+    async with httpx.AsyncClient() as client:
+        # Старт задачи
+        logger.info(f"[RUNPOD WAN] Запуск анимации для Wan 2.1...")
+        try:
+            response = await client.post(RUNPOD_URL_WAN, json=payload, headers=headers, timeout=REQUEST_TIMEOUT)
+            response.raise_for_status()
+            job_id = response.json().get("id")
+            if not job_id:
+                raise ValueError(f"RunPod failed to return Job ID: {response.json()}")
+        except Exception as e:
+            logger.error(f"[RUNPOD WAN] Ошибка старта задачи: {e}")
+            raise RuntimeError(f"Failed to start video generation: {e}")
+
+        # Опрос статуса
+        logger.info(f"[RUNPOD WAN] Задача {job_id} создана. Ожидание готовности...")
+        last_progress = None
+        
+        while True:
+            if time.time() - start_time > timeout:
+                raise TimeoutError(f"Video generation timed out after {timeout} seconds")
+            
+            await asyncio.sleep(POLL_INTERVAL)
+            
+            try:
+                status_response = await check_status(client, job_id, RUNPOD_URL_BASE_WAN)
+                status = status_response.get("status")
+                
+                if status == "IN_PROGRESS":
+                    # Пытаемся достать прогресс
+                    progress_val = status_response.get("progress")
+                    if progress_val:
+                        if isinstance(progress_val, str):
+                            progress_val = progress_val.replace('%', '')
+                        try:
+                            p = int(float(progress_val))
+                            if p != last_progress:
+                                logger.info(f"[RUNPOD WAN] Прогресс {job_id}: {p}%")
+                                if progress_callback:
+                                    progress_callback(f"{p}%")
+                                last_progress = p
+                        except: pass
+
+                elif status == "COMPLETED":
+                    output = status_response.get("output", {})
+                    video_url = output.get("video_url")
+                    if video_url:
+                        logger.success(f"[RUNPOD WAN] Видео готово! URL: {video_url}")
+                        return video_url
+                    
+                    # Если вернул base64 (на случай если S3 не отработал)
+                    video_b64 = output.get("video")
+                    if video_b64:
+                        logger.warning(f"[RUNPOD WAN] Получено base64 видео. Ван воркер должен возвращать URL.")
+                        return video_b64
+                    
+                    raise RuntimeError(f"Wan worker completed but no video found: {output}")
+
+                elif status == "FAILED":
+                    error = status_response.get("error", "Unknown error")
+                    logger.error(f"[RUNPOD WAN] Ошибка задачи {job_id}: {error}")
+                    raise RuntimeError(f"Wan video generation failed: {error}")
+
+                elif status == "CANCELLED":
+                    raise GenerationCancelledError("Video generation was cancelled")
+
+            except Exception as e:
+                if isinstance(e, (RuntimeError, TimeoutError, GenerationCancelledError)):
+                    raise
+                logger.warning(f"[RUNPOD WAN] Ошибка опроса статуса {job_id}: {e}")
                 continue
 
 

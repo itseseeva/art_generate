@@ -1592,6 +1592,9 @@ async def read_characters(
                 "location_en": char.location_en,
                 "name_ru": char.name_ru,
                 "name_en": char.name_en,
+                "seo_lore_ru": char.seo_lore_ru,
+                "seo_lore_en": char.seo_lore_en,
+                "seo_lore_image_url": char.seo_lore_image_url,
             }
             characters_data.append(char_dict)
         
@@ -2625,7 +2628,7 @@ async def read_character_with_creator(
                 logger.error(f"Не удалось загрузить информацию о создателе: {e}", exc_info=True)
         
         # Вычисляем likes и dislikes
-        from app.chat_bot.models.models import CharacterRating
+        from app.chat_bot.models.models import CharacterRating, PaidAlbumPhoto, ChatSession, ChatMessageDB
         from sqlalchemy import func
         
         likes_result = await db.execute(
@@ -2643,21 +2646,51 @@ async def read_character_with_creator(
             )
         )
         dislikes_count = dislikes_result.scalar() or 0
+
+        # Получаем фотографии платного альбома
+        photos_result = await db.execute(
+            select(PaidAlbumPhoto)
+            .where(PaidAlbumPhoto.character_id == db_char.id)
+            .order_by(PaidAlbumPhoto.created_at.desc())
+        )
+        album_photos = photos_result.scalars().all()
+        
+        def process_url(url):
+            if not url or not isinstance(url, str): return url
+            try:
+                from app.services.yandex_storage import get_yandex_storage_service
+                service = get_yandex_storage_service()
+                return service.convert_yandex_url_to_cdn(url)
+            except: return url
+            
+        paid_album_preview_urls = [process_url(p.photo_url) for p in album_photos]
+
+        # Получаем количество сообщений
+        messages_result = await db.execute(
+            select(func.count(ChatMessageDB.id))
+            .join(ChatSession, ChatMessageDB.session_id == ChatSession.id)
+            .where(ChatSession.character_id == db_char.id)
+        )
+        total_messages = messages_result.scalar() or 0
         
         # Создаем объект CharacterInDB из db_char
         from app.chat_bot.schemas.chat import CharacterInDB
         character_data = CharacterInDB.model_validate(db_char)
         
-        # Добавляем likes и dislikes в данные персонажа
+        # Добавляем дополнительные данные в словарь персонажа
         character_dict = character_data.model_dump()
         character_dict['likes'] = likes_count
         character_dict['dislikes'] = dislikes_count
+        character_dict['paid_album_preview_urls'] = paid_album_preview_urls
+        character_dict['paid_album_photos_count'] = len(paid_album_preview_urls)
+        character_dict['total_messages_count'] = total_messages
         
         # Создаем CharacterWithCreator
         return CharacterWithCreator(
             **character_dict,
             creator_info=creator_info
         )
+
     except HTTPException:
         raise
     except Exception as e:
@@ -4253,6 +4286,255 @@ async def generate_character_photo(
         await db.rollback()
         logger.error(f"Photo generation error: {e}")
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/{character_name}/generate-lore", response_model=dict)
+async def generate_seo_lore(
+    character_name: str,
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    Генерирует SEO-статью (Lore) для персонажа.
+    Доступно только администраторам.
+    """
+    from app.chat_bot.models.models import CharacterDB
+    from sqlalchemy import select
+    from urllib.parse import unquote
+    from app.chat_bot.services.openrouter_service import OpenRouterService
+    import asyncio
+    
+    if not current_user.is_admin:
+        raise HTTPException(status_code=403, detail="Only admins can generate SEO lore")
+        
+    try:
+        decoded_name = unquote(character_name)
+        result = await db.execute(select(CharacterDB).where(CharacterDB.name.ilike(decoded_name)))
+        db_char = result.scalars().first()
+        
+        if not db_char:
+            raise HTTPException(status_code=404, detail="Character not found")
+            
+        # Формируем данные персонажа
+        char_info = f"Имя: {db_char.name}\n"
+        if getattr(db_char, "description", None):
+            char_info += f"Описание: {db_char.description}\n"
+        if getattr(db_char, "situation_ru", None):
+            char_info += f"Ситуация: {db_char.situation_ru}\n"
+        if getattr(db_char, "personality_ru", None):
+            char_info += f"Личность: {db_char.personality_ru}\n"
+        
+        appearance = getattr(db_char, "appearance_ru", None) or getattr(db_char, "character_appearance", None)
+        if appearance:
+            char_info += f"Внешность: {appearance}\n"
+            
+        tags = []
+        if getattr(db_char, "tags", None):
+            tags = [t.name for t in getattr(db_char, "tags", []) if hasattr(t, "name")]
+            if tags:
+                char_info += f"Теги: {', '.join(tags)}\n"
+            
+        openrouter = OpenRouterService()
+        
+        # Системный промпт (RU)
+        sys_prompt_ru = (
+            "Ты — профессиональный автор фэнтези. Твоя задача — написать красивую, захватывающую статью "
+            "(от 500 до 800 слов), погружающую в историю персонажа. Используй предоставленные факты. "
+            "Возвращай текст строго в формате Markdown. Обязательно используй заголовки (H2, H3), "
+            "цитаты для ключевых мыслей (> блокквоты), списки и выделение жирным текстом для акцентов. "
+            "Сделай текст сочным, структурированным и художественно красивым (как в дорогом глянцевом журнале). Напиши на русском языке."
+        )
+        
+        # Системный промпт (EN)
+        sys_prompt_en = (
+            "You are a professional fantasy author. Your task is to write a beautiful, captivating article "
+            "(around 500 to 800 words) immersing the reader in the character's story. Use the provided facts. "
+            "Return text strictly in Markdown format. Make sure to use headers (H2, H3), blockquotes for key thoughts, "
+            "bullet points, and bold text for accents. Make the text vivid, structured, and artistically beautiful "
+            "(like in a premium magazine). Write in English."
+        )
+
+        async def generate_ru():
+            return await openrouter.generate_text(
+                messages=[
+                    {"role": "system", "content": sys_prompt_ru},
+                    {"role": "user", "content": f"Напиши статью про этого персонажа:\n{char_info}"}
+                ],
+                model="anthropic/claude-sonnet-4.6",
+                max_tokens=4000
+            )
+
+        async def generate_en():
+            return await openrouter.generate_text(
+                messages=[
+                    {"role": "system", "content": sys_prompt_en},
+                    {"role": "user", "content": f"Write an article about this character (translate info to EN in your head):\n{char_info}"}
+                ],
+                model="anthropic/claude-sonnet-4.6",
+                max_tokens=4000
+            )
+            
+        # Генерируем изображение через уже существующий сервис генерации
+        # Формируем промпт для уникального фото
+        async def generate_img():
+            from app.main import generate_image, ImageGenerationRequest
+            appearance = getattr(db_char, "appearance_ru", None) or getattr(db_char, "character_appearance", None)
+            prompt = f"masterpiece, best quality, 1girl, {db_char.name}, {(appearance or '')[:100]}"
+            negative = "lowres, bad quality, blurry"
+            
+            from fastapi import Request
+            req = ImageGenerationRequest(
+                prompt=prompt,
+                negative_prompt=negative,
+                width=832,
+                height=1216,
+                steps=30,
+                model="anime-realism",
+                use_default_prompts=True,
+                character=db_char.name,
+                user_id=current_user.id
+            )
+            try:
+                # generate_image is async and uses main.generate_image
+                res = await generate_image(request=req, current_user=current_user)
+                return res.get("cloud_url") or res.get("image_url")
+            except Exception as e:
+                logger.error(f"[LORE] Изображение не удалось сгенерировать: {e}")
+                return None
+                
+        # 1. Сначала генерируем тексты (RU и EN)
+        lore_ru, lore_en = await asyncio.gather(
+            generate_ru(),
+            generate_en()
+        )
+        
+        if not lore_ru or not lore_en:
+            await openrouter.close()
+            raise HTTPException(status_code=500, detail="Failed to generate text from OpenRouter")
+
+        # 2. Генерируем промпт для изображений на основе написанной статьи
+        img_prompt_sys = (
+            "Ты — эксперт по промптам для Stable Diffusion. На основе текста статьи придумай детализированный "
+            "промпт для генерации одного красивого художественного изображения персонажа. "
+            "Промпт должен быть на английском языке, содержать описание внешности, позы, фона и освещения. "
+            "Возвращай ТОЛЬКО сам текст промпта без лишних слов."
+        )
+        
+        img_art_prompt = await openrouter.generate_text(
+            messages=[
+                {"role": "system", "content": img_prompt_sys},
+                {"role": "user", "content": f"Статья про персонажа:\n{lore_ru[:2000]}"}
+            ],
+            model="anthropic/claude-sonnet-4.6",
+            max_tokens=300
+        )
+        
+        await openrouter.close()
+        
+        # 3. Генерируем два изображения на основе полученного промпта
+        async def generate_themed_img(custom_prompt, seed_offset=0):
+            from app.main import generate_image, ImageGenerationRequest
+            appearance = getattr(db_char, "appearance_ru", None) or getattr(db_char, "character_appearance", None)
+            
+            import re
+            is_numeric_name = bool(re.match(r'^\d+$', str(db_char.name)))
+            char_name_for_prompt = "beautiful girl" if is_numeric_name else db_char.name
+
+            final_prompt = (
+                f"masterpiece, best quality, high-end digital art, cinematic lighting, highly detailed, "
+                f"1girl, {char_name_for_prompt}, {appearance or ''}, {custom_prompt or ''}"
+            )
+            negative = "lowres, bad quality, blurry, watermark, signature, text, nsfw, deformed, ugly, bad anatomy" 
+            
+            logger.info(f"[SEO LORE] Triggering image generation for '{db_char.name}'...")
+            
+            req = ImageGenerationRequest(
+                prompt=final_prompt[:800],
+                negative_prompt=negative,
+                width=832,
+                height=1216,
+                steps=30,
+                model="anime-realism",
+                use_default_prompts=True,
+                character=db_char.name,
+                user_id=current_user.id
+            )
+            try:
+                res = await generate_image(request=req, current_user=current_user)
+                
+                # generate_image возвращает либо URL (если синхронно/заглушка), либо task_id
+                task_id = res.get("task_id")
+                if not task_id:
+                    return res.get("cloud_url") or res.get("image_url")
+                
+                # Если получили task_id, ждем завершения задачи
+                from celery.result import AsyncResult
+                import asyncio
+                
+                logger.info(f"[SEO LORE] Waiting for Celery task {task_id}...")
+                result = AsyncResult(task_id)
+                
+                # Ждем до 90 секунд (генерация обычно занимает 15-30 сек)
+                for i in range(45): 
+                    if result.ready():
+                        if result.successful():
+                            data = result.result
+                            url = data.get("image_url")
+                            logger.info(f"[SEO LORE] Task {task_id} completed. URL: {url}")
+                            return url
+                        else:
+                            logger.error(f"[SEO LORE] Task {task_id} FAILED: {result.result}")
+                            return None
+                    await asyncio.sleep(2)
+                
+                logger.warning(f"[SEO LORE] Timeout waiting for task {task_id}")
+                return None
+                
+            except Exception as e:
+                logger.error(f"[SEO LORE] Image generation error: {e}", exc_info=True)
+                return None
+
+
+        # Генерируем 2 вариации
+        img_url1, img_url2 = await asyncio.gather(
+            generate_themed_img(img_art_prompt),
+            generate_themed_img(img_art_prompt + ", alternative artistic angle, atmospheric background")
+        )
+        
+        # Собираем список URL
+        img_urls = [u for u in [img_url1, img_url2] if u]
+        combined_img_url = ",".join(img_urls) if img_urls else None
+
+        if not combined_img_url:
+            logger.warning(f"[SEO LORE] No images were generated for character {db_char.id}")
+
+        # Сохраняем в БД
+        db_char.seo_lore_ru = lore_ru
+        db_char.seo_lore_en = lore_en
+        if combined_img_url:
+            db_char.seo_lore_image_url = combined_img_url
+        
+        await db.commit()
+        await db.refresh(db_char)
+
+        
+        # Инвалидируем кэш, чтобы новые данные сразу появились в списке
+        await cache_delete(key_character(db_char.name))
+        await cache_delete_pattern("characters:list:*")
+        
+        return {
+            "success": True,
+            "seo_lore_ru": lore_ru,
+            "seo_lore_en": lore_en,
+            "seo_lore_image_url": combined_img_url
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"[LORE] Ошибка генерации: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @router.get("/{character_name}/photos/")

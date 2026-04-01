@@ -69,11 +69,6 @@ class CharacterAvailableTag(Base):
     seo_description = Column(UTF8Text, nullable=True)
 
 
-@event.listens_for(CharacterAvailableTag, 'before_insert')
-@event.listens_for(CharacterAvailableTag, 'before_update')
-def receive_before_insert_update(mapper, connection, target):
-    if target.name and not target.slug:
-        target.slug = slugify(target.name)
 
 
 class CharacterDB(Base):
@@ -83,6 +78,7 @@ class CharacterDB(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), unique=True, index=True, nullable=False)
+    slug = Column(String(100), unique=True, index=True, nullable=True)
     display_name = Column(String(200), nullable=True, default=None)  # Display name
     name_ru = Column(String(200), nullable=True, default=None)  # Имя на русском (для отображения)
     name_en = Column(String(200), nullable=True, default=None)  # Name in English (for display)
@@ -112,6 +108,12 @@ class CharacterDB(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)  # User relationship
     created_at = Column(DateTime(timezone=True), server_default=func.now())  # Creation time
     main_photos = Column(UTF8Text, nullable=True, default=None)  # JSON string with main photo IDs
+    
+    # Поля для SEO-статьи о персонаже
+    seo_lore_ru = Column(UTF8Text, nullable=True, default=None)
+    seo_lore_en = Column(UTF8Text, nullable=True, default=None)
+    seo_lore_image_url = Column(UTF8Text, nullable=True, default=None)
+    
     is_nsfw = Column(Boolean, nullable=False, server_default='1')
     voice_url = Column(String(500), nullable=True, default=None)  # URL для образца голоса (TTS)
     voice_id = Column(String(100), nullable=True, default=None)  # ID голоса из папки default_character_voices
@@ -124,6 +126,16 @@ class CharacterDB(Base):
     def prompt(self) -> Optional[str]:
         """Deprecated: Returns None as prompt column is removed."""
         return None
+
+
+
+@event.listens_for(CharacterAvailableTag, 'before_insert')
+@event.listens_for(CharacterAvailableTag, 'before_update')
+@event.listens_for(CharacterDB, 'before_insert')
+@event.listens_for(CharacterDB, 'before_update')
+def receive_before_insert_update(mapper, connection, target):
+    if hasattr(target, 'name') and target.name and not getattr(target, 'slug', None):
+        target.slug = slugify(target.name)
 
 
 class PaidAlbumUnlock(Base):
