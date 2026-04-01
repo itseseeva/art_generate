@@ -209,7 +209,7 @@ export const AdminSliderPage: React.FC<{ onBack: () => void }> = ({ onBack }) =>
   const handleSave = async () => {
     const formData = new FormData();
     Object.entries(editForm).forEach(([key, value]) => {
-      if (!['image_url', 'image_url_en', 'id', 'created_at'].includes(key) && value !== null && value !== undefined) {
+      if (!['id', 'created_at'].includes(key) && value !== null && value !== undefined) {
         formData.append(key, String(value));
       }
     });
@@ -265,15 +265,31 @@ export const AdminSliderPage: React.FC<{ onBack: () => void }> = ({ onBack }) =>
             </FormGroup>
             
             <FormGroup>
-              <Label>RU Image (Показывается при RU версии)</Label>
+              <Label>{currentLang === 'ru' ? 'RU Изображение (Файл)' : 'RU Image (File)'}</Label>
               <Input type="file" onChange={e => setSelectedFileRu(e.target.files?.[0] || null)} />
-              {editForm.image_url && <span style={{fontSize: '0.7rem', opacity: 0.5}}>Текущий файл RU: {editForm.image_url.split('/').pop()}</span>}
             </FormGroup>
 
             <FormGroup>
-              <Label>EN Image (Show for EN version)</Label>
+              <Label>{currentLang === 'ru' ? 'RU Изображение (Ссылка)' : 'RU Image (URL)'}</Label>
+              <Input 
+                value={editForm.image_url || ''} 
+                onChange={e => setEditForm({...editForm, image_url: e.target.value})} 
+                placeholder="https://example.com/image_ru.jpg"
+              />
+            </FormGroup>
+
+            <FormGroup>
+              <Label>{currentLang === 'ru' ? 'EN Изображение (Файл)' : 'EN Image (File)'}</Label>
               <Input type="file" onChange={e => setSelectedFileEn(e.target.files?.[0] || null)} />
-              {editForm.image_url_en && <span style={{fontSize: '0.7rem', opacity: 0.5}}>Current EN file: {editForm.image_url_en.split('/').pop()}</span>}
+            </FormGroup>
+
+            <FormGroup>
+              <Label>{currentLang === 'ru' ? 'EN Изображение (Ссылка)' : 'EN Image (URL)'}</Label>
+              <Input 
+                value={editForm.image_url_en || ''} 
+                onChange={e => setEditForm({...editForm, image_url_en: e.target.value})} 
+                placeholder="https://example.com/image_en.jpg"
+              />
             </FormGroup>
 
             <FormGroup>

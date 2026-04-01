@@ -33,6 +33,8 @@ async def create_slide(
     button_text_ru: Optional[str] = Form(None),
     button_text_en: Optional[str] = Form(None),
     target_url: str = Form("/#"),
+    image_url: Optional[str] = Form(None),
+    image_url_en: Optional[str] = Form(None),
     is_active: str = Form("true"),
     show_timer: str = Form("false"),
     order: str = Form("0"),
@@ -46,9 +48,6 @@ async def create_slide(
         raise HTTPException(status_code=403, detail="Только администраторы могут добавлять слайды")
     
     try:
-        image_url = None
-        image_url_en = None
-
         if file_ru:
             file_content = await file_ru.read()
             file_extension = file_ru.filename.split(".")[-1] if "." in file_ru.filename else "jpg"
@@ -58,6 +57,8 @@ async def create_slide(
                 object_key=object_key,
                 content_type=file_ru.content_type
             )
+        elif image_url == "null":
+            image_url = None
 
         if file_en:
             file_content = await file_en.read()
@@ -68,6 +69,8 @@ async def create_slide(
                 object_key=object_key,
                 content_type=file_en.content_type
             )
+        elif image_url_en == "null":
+            image_url_en = None
         
         new_slide = PromoSliderItem(
             image_url=image_url,
@@ -102,6 +105,8 @@ async def update_slide(
     button_text_ru: Optional[str] = Form(None),
     button_text_en: Optional[str] = Form(None),
     target_url: Optional[str] = Form(None),
+    image_url: Optional[str] = Form(None),
+    image_url_en: Optional[str] = Form(None),
     is_active: Optional[str] = Form(None),
     show_timer: Optional[str] = Form(None),
     order: Optional[str] = Form(None),
@@ -129,6 +134,8 @@ async def update_slide(
                 object_key=object_key,
                 content_type=file_ru.content_type
             )
+        elif image_url is not None:
+            slide.image_url = image_url if image_url != "null" else None
         
         if file_en:
             file_content = await file_en.read()
@@ -139,6 +146,8 @@ async def update_slide(
                 object_key=object_key,
                 content_type=file_en.content_type
             )
+        elif image_url_en is not None:
+            slide.image_url_en = image_url_en if image_url_en != "null" else None
             
         if title_ru is not None: slide.title_ru = title_ru
         if title_en is not None: slide.title_en = title_en
