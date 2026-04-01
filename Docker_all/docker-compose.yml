@@ -75,21 +75,7 @@ services:
       - ../alembic.ini:/app/alembic.ini
       - ../paid_gallery:/app/paid_gallery
       # - ../frontend/dist:/app/frontend/dist:ro # Теперь файлы внутри образа
-    command: >
-      sh -c "
-      echo 'Применение миграций...' ;
-      alembic upgrade head ;
-      echo 'Исправление колонок (fallback)...' ;
-      python -m app.scripts.fix_missing_columns || true ;
-      python -m app.scripts.init_admin || true ;
-      python -m app.scripts.init_test_user || true ;
-      echo 'Инициализация всех тегов...' ;
-      python -m app.scripts.populate_tags || true ;
-      echo 'Обновление тегов персонажей...' ;
-      python -m app.scripts.update_character_tags || true ;
-      echo 'Запуск сервера...' ;
-      gunicorn app.main:app --workers 8 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --worker-connections 1000 --timeout 180 --graceful-timeout 30 --keep-alive 5
-      "
+    command: /app/startup.sh
 
   art_generation_frontend:
     build:

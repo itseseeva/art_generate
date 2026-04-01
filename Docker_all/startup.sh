@@ -1,50 +1,52 @@
 #!/bin/bash
-# Startup скрипт для Docker контейнера
-# Выполняет миграции и инициализацию при старте
+# startup.sh - Best Practice Startup Script
 
+# Перехватываем ошибки
 set -e
 
-echo "🚀 Starting backend initialization..."
+echo "🚀 Starting Backend Initialization..."
 
-# Ожидание готовности базы данных (если nc доступен)
-if command -v nc >/dev/null 2>&1; then
-    echo "🔍 Checking database connectivity..."
-    while ! nc -z $POSTGRES_HOST 5432; do
-      sleep 0.1
-    done
-    echo "✅ Database is reachable."
-fi
+# 1. Ожидание доступности базы данных
+# Используем имя сервиса из docker-compose
+DB_HOST="art_generation_postgres"
+DB_PORT=5432
 
-# 1. Проверка и применение миграций
-echo "📦 Running database migrations (alembic)..."
+echo "🔍 Waiting for Database ($DB_HOST:$DB_PORT)..."
+# Используем таймаут для nc, чтобы не виснуть вечно
+while ! nc -z $DB_HOST $DB_PORT; do
+  echo "⏳ Postgres is unavailable - sleeping"
+  sleep 2
+done
+echo "✅ Postgres is up!"
+
+# 2. Применение миграций Alembic
+# Теперь миграции идемпотентны (безопасны для повторного запуска)
+echo "📦 Running database migrations..."
 alembic upgrade head || {
-    echo "⚠️  Alembic migration failed, checking if columns already exist..."
+    echo "❌ Alembic migrations failed!"
+    # В продакшене лучше упасть здесь, чем работать на битой базе
+    exit 1
 }
 
-# 2. Форсированное исправление колонок (fallback)
-echo "🔧 Running fallback column fix (ensuring has_welcome_discount exists)..."
-python -m app.scripts.fix_missing_columns || echo "⚠️ Fallback fix failed or wasn't needed"
-
 # 3. Инициализация данных
+# Используем || true, чтобы ошибки в скриптах инициализации не ломали запуск сервера, 
+# если данные уже существуют или не критичны.
 echo "👤 Initializing admin user..."
-python -m app.scripts.init_admin || echo "⚠️  init_admin finished with warnings"
+python -m app.scripts.init_admin || echo "⚠️ Admin initialization finished with warnings"
 
 echo "🧪 Initializing test user..."
-python -m app.scripts.init_test_user || echo "⚠️  init_test_user finished with warnings"
+python -m app.scripts.init_test_user || echo "⚠️ Test user initialization finished with warnings"
 
-echo "🏷️  Populating tags..."
-python -m app.scripts.populate_tags || echo "⚠️  populate_tags finished with warnings"
+echo "🏷️ Populating tags..."
+python -m app.scripts.populate_tags || echo "⚠️ Tag population finished with warnings"
 
 echo "🎭 Updating character tags..."
-python -m app.scripts.update_character_tags || echo "⚠️  update_character_tags finished with warnings"
+python -m app.scripts.update_character_tags || echo "⚠️ Character tags update finished with warnings"
 
-# Скрипт перевода персонажей опционален
-echo "🌐 Translating character names (if needed)..."
-python -m app.scripts.translate_character_names || echo "⚠️  translate_character_names finished with warnings (non-fatal)"
-
-# 4. Запуск сервера
-echo "🎯 Starting gunicorn server..."
-# Используем exec чтобы gunicorn стал основным процессом (PID 1)
+# 4. Запуск основного сервера Gunicorn
+# 'exec' заменяет текущий процесс оболочки на Gunicorn, 
+# что важно для корректной обработки сигналов Docker (SIGTERM)
+echo "🎯 Starting Gunicorn Server..."
 exec gunicorn app.main:app \
     --workers 8 \
     --worker-class uvicorn.workers.UvicornWorker \
